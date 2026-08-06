@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Polaris — Gestão Operacional</title>
+<title>Polaris — Painel de Atendimento</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -359,7 +359,7 @@
       </span>
       <div>
         <h1>Polaris</h1>
-        <p class="header__subtitle">Gestão Operacional</p>
+        <p class="header__subtitle">Painel de atendimento em tempo real</p>
       </div>
     </div>
 
@@ -686,6 +686,7 @@
 <script>
 // ===================== Supabase (proxies, sem CORS) =====================
 const SUPABASE_FUNCTIONS_BASE = "https://aktblbrbzzfislqszbqy.supabase.co/functions/v1";
+const SUPABASE_REST_BASE = "https://aktblbrbzzfislqszbqy.supabase.co/rest/v1";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_2FQkCHQzmLbIjdu67FSjnw_SU3dV06m";
 
 const DEFAULT_QUEUE_SKILLS = [
@@ -1116,6 +1117,270 @@ async function refreshPanel() {
 
 refreshPanel();
 setInterval(refreshPanel, 20000);
+
+// ======================================================================
+// Inteligência & Relatórios — histórico, comparativos, heatmap, previsão
+// ======================================================================
+
+const QUEUE_NAME_ALL = "TODAS (Food)";
+const WEEKDAY_LABELS = ["", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]; // índice 1..7 (ISO)
+const REPORT_HOURS = Array.from({ length: 24 }, (_, i) => i); // 0..23
+
+async function fetchHourlyMetrics({ fromDate, toDate } = {}) {
+  const params = new URLSearchParams();
+  params.set("select", "metric_date,hour,weekday,week_of_month,iso_week,month,year,ended_count_hour,ended_count_accum_day,tme_seconds,tma_seconds,service_level,losses_percentage,waiting_count");
+  params.set("queue_name", `eq.${QUEUE_NAME_ALL}`);
+  params.set("order", "metric_date.asc,hour.asc");
+  if (fromDate) params.append("metric_date", `gte.${fromDate}`);
+  if (toDate) params.append("metric_date", `lte.${toDate}`);
+
+  const res = await fetch(`${SUPABASE_REST_BASE}/hourly_metrics?${params.toString()}`, {
+    headers: {
+      "apikey": SUPABASE_PUBLISHABLE_KEY,
+      "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ao consultar histórico`);
+  return res.json();
+}
+
+function todayLocalISODate() {
+  const now = new Date();
+  const tzOffsetMs = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
+}
+
+function addDaysISO(isoDate, days) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function sumBy(rows, key) {
+  return rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+}
+function avgBy(rows, key) {
+  const vals = rows.map((r) => Number(r[key])).filter((v) => !Number.isNaN(v) && v != null);
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function renderComparisonCard(label, currentVal, previousVal, { unit = "", isTimeSeconds = false } = {}) {
+  const hasBoth = currentVal != null && previousVal != null;
+  const fmt = (v) => (isTimeSeconds ? formatSeconds(v) : `${Math.round(v)}${unit}`);
+
+  let deltaHtml = '<p class="comparison-card__empty">Sem dados suficientes para comparar.</p>';
+  if (hasBoth && previousVal !== 0) {
+    const diffPct = Math.round(((currentVal - previousVal) / previousVal) * 100);
+    const trend = diffPct > 0 ? "up" : diffPct < 0 ? "down" : "flat";
+    const arrow = diffPct > 0 ? "▲" : diffPct < 0 ? "▼" : "＝";
+    deltaHtml = `<p class="comparison-card__delta" data-trend="${trend}">${arrow} ${Math.abs(diffPct)}% vs. referência</p>`;
+  }
+
+  return `
+    <div class="comparison-card">
+      <p class="comparison-card__label">${label}</p>
+      <p class="comparison-card__value">${currentVal != null ? fmt(currentVal) : "–"}</p>
+      ${deltaHtml}
+    </div>`;
+}
+
+async function renderComparisons() {
+  const grid = document.getElementById("comparisonsGrid");
+  const today = todayLocalISODate();
+  const yesterday = addDaysISO(today, -1);
+  const lastWeekSameDay = addDaysISO(today, -7);
+
+  const all = await fetchHourlyMetrics({ fromDate: addDaysISO(today, -120), toDate: today });
+
+  const rowsToday = all.filter((r) => r.metric_date === today);
+  const rowsYesterday = all.filter((r) => r.metric_date === yesterday);
+  const rowsLastWeek = all.filter((r) => r.metric_date === lastWeekSameDay);
+
+  const todayWeekday = rowsToday[0]?.weekday ?? (new Date().getDay() || 7);
+  const historicalSameWeekday = all.filter((r) => r.weekday === todayWeekday && r.metric_date !== today);
+  const historicalAvgTotal = (() => {
+    const byDate = {};
+    historicalSameWeekday.forEach((r) => { byDate[r.metric_date] = (byDate[r.metric_date] || 0) + (r.ended_count_hour || 0); });
+    const totals = Object.values(byDate);
+    return totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : null;
+  })();
+
+  const totalToday = rowsToday.length ? Math.max(...rowsToday.map((r) => r.ended_count_accum_day || 0)) : null;
+  const totalYesterday = rowsYesterday.length ? Math.max(...rowsYesterday.map((r) => r.ended_count_accum_day || 0)) : null;
+  const totalLastWeek = rowsLastWeek.length ? Math.max(...rowsLastWeek.map((r) => r.ended_count_accum_day || 0)) : null;
+
+  grid.innerHTML = [
+    renderComparisonCard("Hoje x Ontem (volume)", totalToday, totalYesterday),
+    renderComparisonCard(`Hoje x ${WEEKDAY_LABELS[todayWeekday]} passada`, totalToday, totalLastWeek),
+    renderComparisonCard("Hoje x média histórica do dia", totalToday, historicalAvgTotal),
+    renderComparisonCard("TME hoje x ontem", avgBy(rowsToday, "tme_seconds"), avgBy(rowsYesterday, "tme_seconds"), { isTimeSeconds: true }),
+    renderComparisonCard("TMA hoje x ontem", avgBy(rowsToday, "tma_seconds"), avgBy(rowsYesterday, "tma_seconds"), { isTimeSeconds: true }),
+    renderComparisonCard("Nível de Serviço hoje x ontem", avgBy(rowsToday, "service_level"), avgBy(rowsYesterday, "service_level"), { unit: "%" }),
+  ].join("");
+
+  return all;
+}
+
+function colorForIntensity(value, max) {
+  if (value == null || max <= 0) return "var(--canvas-edge)";
+  const pct = Math.min(1, value / max);
+  // Interpola do tom claro (--canvas-edge) pro teal escuro (--teal-700), via alpha
+  const alpha = 0.12 + pct * 0.75;
+  return `rgba(15, 118, 144, ${alpha.toFixed(2)})`; // teal-700 aproximado em rgba
+}
+
+function renderHeatmap(all) {
+  const wrap = document.getElementById("heatmapWrap");
+
+  // Média de ended_count_hour por (weekday, hour), ignorando o dia de hoje em andamento
+  const today = todayLocalISODate();
+  const historical = all.filter((r) => r.metric_date !== today && r.ended_count_hour != null);
+
+  if (historical.length === 0) {
+    wrap.innerHTML = '<p class="reports-empty">Ainda não há dados suficientes pra montar o mapa de calor — volte em alguns dias.</p>';
+    return;
+  }
+
+  const buckets = {}; // "weekday-hour" -> {sum, count}
+  historical.forEach((r) => {
+    const key = `${r.weekday}-${r.hour}`;
+    if (!buckets[key]) buckets[key] = { sum: 0, count: 0 };
+    buckets[key].sum += r.ended_count_hour;
+    buckets[key].count += 1;
+  });
+
+  let maxAvg = 0;
+  const avgFor = (weekday, hour) => {
+    const b = buckets[`${weekday}-${hour}`];
+    if (!b) return null;
+    const avg = b.sum / b.count;
+    if (avg > maxAvg) maxAvg = avg;
+    return avg;
+  };
+
+  // Pré-computa antes de renderizar (pra ter maxAvg correto)
+  const grid = [];
+  for (const hour of REPORT_HOURS) {
+    for (let wd = 1; wd <= 7; wd++) grid.push([wd, hour, avgFor(wd, hour)]);
+  }
+
+  let html = '<div class="heatmap-grid">';
+  html += '<div class="heatmap-cell heatmap-head"></div>';
+  for (let wd = 1; wd <= 7; wd++) html += `<div class="heatmap-cell heatmap-head">${WEEKDAY_LABELS[wd]}</div>`;
+
+  for (const hour of REPORT_HOURS) {
+    html += `<div class="heatmap-cell heatmap-hour">${String(hour).padStart(2, "0")}h</div>`;
+    for (let wd = 1; wd <= 7; wd++) {
+      const val = grid.find((g) => g[0] === wd && g[1] === hour)[2];
+      if (val == null) {
+        html += '<div class="heatmap-cell heatmap-empty">–</div>';
+      } else {
+        html += `<div class="heatmap-cell" style="background:${colorForIntensity(val, maxAvg)}" title="${WEEKDAY_LABELS[wd]} ${hour}h — média ${val.toFixed(1)}">${Math.round(val)}</div>`;
+      }
+    }
+  }
+  html += "</div>";
+  wrap.innerHTML = html;
+}
+
+function renderForecast(all) {
+  const tbody = document.getElementById("forecastTableBody");
+  const today = todayLocalISODate();
+  const rowsToday = all.filter((r) => r.metric_date === today);
+  const todayWeekday = rowsToday[0]?.weekday ?? (new Date().getDay() || 7);
+  const currentHour = new Date().getHours();
+
+  const historical = all.filter((r) => r.metric_date !== today && r.weekday === todayWeekday && r.ended_count_hour != null);
+
+  if (historical.length < 3) {
+    tbody.innerHTML = '<tr><td colspan="4" class="reports-empty">Ainda não há histórico suficiente do mesmo dia da semana pra prever — volte em algumas semanas.</td></tr>';
+    return;
+  }
+
+  // Baseline: média histórica por hora (mesmo dia da semana), com leve ajuste
+  // de tendência comparando as últimas ocorrências com as mais antigas.
+  const byHour = {};
+  historical.forEach((r) => {
+    if (!byHour[r.hour]) byHour[r.hour] = [];
+    byHour[r.hour].push(r);
+  });
+
+  let rowsHtml = "";
+  REPORT_HOURS.forEach((hour) => {
+    const samples = (byHour[hour] || []).sort((a, b) => a.metric_date.localeCompare(b.metric_date));
+    if (samples.length === 0) return;
+
+    const avg = samples.reduce((a, s) => a + s.ended_count_hour, 0) / samples.length;
+    let trendAdj = 1;
+    if (samples.length >= 4) {
+      const half = Math.floor(samples.length / 2);
+      const older = samples.slice(0, half);
+      const recent = samples.slice(half);
+      const olderAvg = older.reduce((a, s) => a + s.ended_count_hour, 0) / older.length;
+      const recentAvg = recent.reduce((a, s) => a + s.ended_count_hour, 0) / recent.length;
+      if (olderAvg > 0) trendAdj = Math.max(0.5, Math.min(1.8, recentAvg / olderAvg));
+    }
+    const predicted = Math.round(avg * trendAdj);
+
+    const actualRow = rowsToday.find((r) => r.hour === hour);
+    const actual = actualRow ? actualRow.ended_count_hour : null;
+
+    let diffCell = "–";
+    let diffClass = "";
+    if (actual != null) {
+      const diff = actual - predicted;
+      diffClass = diff > 0 ? "diff-up" : diff < 0 ? "diff-down" : "";
+      diffCell = `${diff > 0 ? "+" : ""}${diff}`;
+    }
+
+    const isCurrent = hour === currentHour ? "is-current-hour" : "";
+    rowsHtml += `<tr class="${isCurrent}">
+      <td>${String(hour).padStart(2, "0")}h–${String(hour + 1).padStart(2, "0")}h</td>
+      <td>${predicted}</td>
+      <td>${actual != null ? actual : "–"}</td>
+      <td class="${diffClass}">${diffCell}</td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = rowsHtml || '<tr><td colspan="4" class="reports-empty">Sem horários com histórico suficiente ainda.</td></tr>';
+}
+
+function renderHistoryRange(all) {
+  const el = document.getElementById("historyRangeText");
+  if (all.length === 0) {
+    el.textContent = "Nenhum dado coletado ainda. A coleta automática roda a cada 5 minutos — volte em breve.";
+    return;
+  }
+  const dates = [...new Set(all.map((r) => r.metric_date))].sort();
+  const days = dates.length;
+  el.innerHTML = `Histórico de <strong>${days} dia${days > 1 ? "s" : ""}</strong>, de <strong>${dates[0]}</strong> até <strong>${dates[dates.length - 1]}</strong>. Quanto mais dias, mais precisos ficam os comparativos, o mapa de calor e a previsão.`;
+}
+
+let reportsLoaded = false;
+async function loadReports() {
+  const grid = document.getElementById("comparisonsGrid");
+  const heatmapWrap = document.getElementById("heatmapWrap");
+  const forecastBody = document.getElementById("forecastTableBody");
+  try {
+    grid.innerHTML = '<p class="reports-loading">Carregando…</p>';
+    heatmapWrap.innerHTML = '<p class="reports-loading">Carregando…</p>';
+    forecastBody.innerHTML = '<tr><td colspan="4" class="reports-loading">Carregando…</td></tr>';
+
+    const all = await renderComparisons();
+    renderHeatmap(all);
+    renderForecast(all);
+    renderHistoryRange(all);
+    reportsLoaded = true;
+  } catch (err) {
+    grid.innerHTML = `<p class="reports-empty">Não foi possível carregar os relatórios (${err.message}).</p>`;
+    heatmapWrap.innerHTML = "";
+    forecastBody.innerHTML = "";
+  }
+}
+
+document.getElementById("refreshReportsBtn").addEventListener("click", loadReports);
+
 </script>
 </body>
 </html>
