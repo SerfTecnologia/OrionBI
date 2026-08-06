@@ -1126,22 +1126,90 @@ const QUEUE_NAME_ALL = "TODAS (Food)";
 const WEEKDAY_LABELS = ["", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]; // índice 1..7 (ISO)
 const REPORT_HOURS = Array.from({ length: 24 }, (_, i) => i); // 0..23
 
-async function fetchHourlyMetrics({ fromDate, toDate } = {}) {
+// Busca com timeout: sem isso, uma requisição que nunca resolve (rede/CORS
+// travando) deixa a aba de Inteligência presa em "Carregando..." pra sempre,
+// sem cair no catch e sem nunca mostrar erro nenhum pro usuário.
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(`Tempo esgotado (${timeoutMs / 1000}s) ao consultar ${new URL(url).pathname}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchHourlyMetricsRaw({ fromDate, toDate, queueName } = {}) {
   const params = new URLSearchParams();
-  params.set("select", "metric_date,hour,weekday,week_of_month,iso_week,month,year,ended_count_hour,ended_count_accum_day,tme_seconds,tma_seconds,service_level,losses_percentage,waiting_count");
-  params.set("queue_name", `eq.${QUEUE_NAME_ALL}`);
+  params.set("select", "metric_date,hour,weekday,week_of_month,iso_week,month,year,ended_count_hour,ended_count_accum_day,tme_seconds,tma_seconds,service_level,losses_percentage,waiting_count,queue_name");
+  if (queueName) params.set("queue_name", `eq.${queueName}`);
   params.set("order", "metric_date.asc,hour.asc");
   if (fromDate) params.append("metric_date", `gte.${fromDate}`);
   if (toDate) params.append("metric_date", `lte.${toDate}`);
 
-  const res = await fetch(`${SUPABASE_REST_BASE}/hourly_metrics?${params.toString()}`, {
+  const res = await fetchWithTimeout(`${SUPABASE_REST_BASE}/hourly_metrics?${params.toString()}`, {
     headers: {
       "apikey": SUPABASE_PUBLISHABLE_KEY,
       "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
     },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ao consultar histórico`);
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} ao consultar histórico${bodyText ? ` — ${bodyText.slice(0, 200)}` : ""}`);
+  }
   return res.json();
+}
+
+// Agrupa linhas por fila em uma única linha "TODAS" por (data, hora),
+// somando contagens e fazendo média ponderada dos tempos/percentuais.
+function aggregateAllQueues(rows) {
+  const buckets = {};
+  rows.forEach((r) => {
+    const key = `${r.metric_date}-${r.hour}`;
+    if (!buckets[key]) {
+      buckets[key] = {
+        metric_date: r.metric_date, hour: r.hour, weekday: r.weekday,
+        week_of_month: r.week_of_month, iso_week: r.iso_week, month: r.month, year: r.year,
+        ended_count_hour: 0, ended_count_accum_day: 0, waiting_count: 0,
+        _tmeSum: 0, _tmaSum: 0, _slSum: 0, _lossSum: 0, _n: 0,
+      };
+    }
+    const b = buckets[key];
+    b.ended_count_hour += Number(r.ended_count_hour) || 0;
+    b.ended_count_accum_day += Number(r.ended_count_accum_day) || 0;
+    b.waiting_count += Number(r.waiting_count) || 0;
+    if (r.tme_seconds != null) { b._tmeSum += Number(r.tme_seconds); b._n += 1; }
+    if (r.tma_seconds != null) b._tmaSum += Number(r.tma_seconds);
+    if (r.service_level != null) b._slSum += Number(r.service_level);
+    if (r.losses_percentage != null) b._lossSum += Number(r.losses_percentage);
+  });
+  return Object.values(buckets).map((b) => ({
+    metric_date: b.metric_date, hour: b.hour, weekday: b.weekday,
+    week_of_month: b.week_of_month, iso_week: b.iso_week, month: b.month, year: b.year,
+    ended_count_hour: b.ended_count_hour, ended_count_accum_day: b.ended_count_accum_day,
+    waiting_count: b.waiting_count,
+    tme_seconds: b._n ? b._tmeSum / b._n : null,
+    tma_seconds: b._n ? b._tmaSum / b._n : null,
+    service_level: b._n ? b._slSum / b._n : null,
+    losses_percentage: b._n ? b._lossSum / b._n : null,
+  })).sort((a, b) => (a.metric_date + a.hour).localeCompare(b.metric_date + b.hour));
+}
+
+async function fetchHourlyMetrics({ fromDate, toDate } = {}) {
+  // Primeiro tenta a linha consolidada "TODAS (Food)", que é mais barata.
+  const consolidated = await fetchHourlyMetricsRaw({ fromDate, toDate, queueName: QUEUE_NAME_ALL });
+  if (consolidated.length > 0) return consolidated;
+
+  // Se não existir (job de coleta ainda não grava essa linha, ou gravou só
+  // por fila individual), busca tudo e agrega no cliente — assim a aba nunca
+  // fica vazia/travada só por causa de uma linha agregada que não existe.
+  const perQueue = await fetchHourlyMetricsRaw({ fromDate, toDate });
+  return aggregateAllQueues(perQueue);
 }
 
 function todayLocalISODate() {
@@ -1373,9 +1441,11 @@ async function loadReports() {
     renderHistoryRange(all);
     reportsLoaded = true;
   } catch (err) {
-    grid.innerHTML = `<p class="reports-empty">Não foi possível carregar os relatórios (${err.message}).</p>`;
-    heatmapWrap.innerHTML = "";
-    forecastBody.innerHTML = "";
+    console.error("[Polaris] Falha ao carregar Inteligência & Relatórios:", err);
+    const msg = `Não foi possível carregar os relatórios (${err.message}).`;
+    grid.innerHTML = `<p class="reports-empty">${msg}</p>`;
+    heatmapWrap.innerHTML = `<p class="reports-empty">${msg}</p>`;
+    forecastBody.innerHTML = `<tr><td colspan="4" class="reports-empty">${msg}</td></tr>`;
   }
 }
 
