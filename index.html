@@ -333,6 +333,9 @@
   .heatmap-cell.heatmap-head { font-weight: 700; color: var(--ink); background: transparent; }
   .heatmap-cell.heatmap-hour { font-weight: 700; color: var(--ink); background: transparent; text-align: right; padding-right: 6px; }
   .heatmap-cell.heatmap-empty { background: transparent; color: var(--ink-faint); }
+  .heatmap-cell.heatmap-inprogress { background: transparent; color: var(--ink-faint); border: 1px dashed var(--ink-faint); }
+  .heatmap-cell.heatmap-today { box-shadow: inset 0 0 0 2px var(--teal-600); }
+  .heatmap-cell.heatmap-head.heatmap-today { color: var(--teal-600); }
 
   .forecast-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .forecast-table th { text-align: left; padding: 7px 10px; font-size: 11px; text-transform: uppercase; color: var(--teal-700); border-bottom: 1px solid var(--line); }
@@ -485,7 +488,7 @@
 
     <p id="errorBanner" class="error-banner" style="display:none"></p>
 
-    <section class="agent-section">
+    <section class="agent-section" id="agentSection">
       <div class="agent-section__head">
         <h2>Analistas acima do tempo limite</h2>
         <p class="agent-section__hint">Fonte: Painel RC — vertical Food</p>
@@ -604,6 +607,18 @@
 
       <div class="card">
         <div class="card__title">
+          <span class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg></span>
+          <h2>Analistas acima do tempo limite</h2>
+        </div>
+        <p class="card__note">Tabela na tela principal com os analistas cujo tempo de atendimento passou dos limites definidos abaixo.</p>
+        <div class="field field--switch">
+          <label>Exibir tabela no painel</label>
+          <label class="switch"><input type="checkbox" id="agentTmaTableEnabled" /><span class="switch__track"><span class="switch__thumb"></span></span></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__title">
           <span class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></span>
           <h2>Som</h2>
         </div>
@@ -632,6 +647,40 @@
       publicada). Quanto mais dias passarem, mais precisas ficam as comparações, o mapa de calor e a
       previsão abaixo — no começo, é normal aparecer "sem dados suficientes" em vários pontos.
     </p>
+
+    <div class="card">
+      <div class="card__title">
+        <span class="card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"/><path d="M3 10h18v4H3z"/><path d="M3 17h18v4H3z"/></svg></span>
+        <h2>Filas incluídas nesta análise</h2>
+      </div>
+      <div class="field">
+        <div class="field__row">
+          <label id="reportsQueueSummary">Todas as filas</label>
+          <div>
+            <button type="button" id="reportsToggleQueueList" class="link-btn">Escolher filas</button>
+          </div>
+        </div>
+        <p class="field__hint">
+          Por padrão, os comparativos, o mapa de calor e a previsão abaixo somam <strong>todas as filas de
+          Food</strong>. Selecione filas específicas pra ver a análise só delas.
+        </p>
+        <div id="reportsQueuePicker" style="display:none; margin-top:10px;">
+          <div class="field__row">
+            <span></span>
+            <div>
+              <button type="button" id="reportsSelectAllQueues" class="link-btn">Selecionar todas</button>
+              <span class="dot-sep">·</span>
+              <button type="button" id="reportsSelectNoneQueues" class="link-btn">Limpar seleção</button>
+            </div>
+          </div>
+          <div id="reportsQueueList" class="queue-list"></div>
+          <div class="actions" style="margin-top:10px;">
+            <button type="button" id="reportsApplyQueues" class="btn btn--primary">Aplicar seleção</button>
+            <button type="button" id="reportsCancelQueues" class="btn btn--ghost">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="card">
       <div class="card__title">
@@ -712,6 +761,7 @@ const DEFAULT_SETTINGS = {
   serviceLevelGoodThreshold: 85,
   lossesWarnThreshold: 1,
   similarIssuesEnabled: false,
+  agentTmaTableEnabled: true,
 };
 
 const LS_KEY = "orionWebSettings";
@@ -825,6 +875,7 @@ const f = {
   serviceLevelGoodThreshold: document.getElementById("serviceLevelGoodThreshold"),
   lossesWarnThreshold: document.getElementById("lossesWarnThreshold"),
   similarIssuesEnabled: document.getElementById("similarIssuesEnabled"),
+  agentTmaTableEnabled: document.getElementById("agentTmaTableEnabled"),
 };
 const queueListEl = document.getElementById("queueList");
 const savedMsg = document.getElementById("savedMsg");
@@ -850,6 +901,11 @@ function updateQueueChip(settings) {
   chipQueues.textContent = n > 0 ? `${n} fila${n > 1 ? "s" : ""} selecionada${n > 1 ? "s" : ""}` : "Todas as filas";
 }
 
+function applyAgentSectionVisibility(settings) {
+  const section = document.getElementById("agentSection");
+  if (section) section.style.display = settings.agentTmaTableEnabled ? "" : "none";
+}
+
 let currentSettings = loadSettings();
 
 function fillForm(s) {
@@ -864,10 +920,12 @@ function fillForm(s) {
   f.serviceLevelGoodThreshold.value = s.serviceLevelGoodThreshold;
   f.lossesWarnThreshold.value = s.lossesWarnThreshold;
   f.similarIssuesEnabled.checked = s.similarIssuesEnabled;
+  f.agentTmaTableEnabled.checked = s.agentTmaTableEnabled;
   buildQueueChecklist(s.selectedQueues);
   updateQueueChip(s);
 }
 fillForm(currentSettings);
+applyAgentSectionVisibility(currentSettings);
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -884,9 +942,11 @@ form.addEventListener("submit", (e) => {
     serviceLevelGoodThreshold: Math.min(100, Math.max(1, parseInt(f.serviceLevelGoodThreshold.value, 10) || DEFAULT_SETTINGS.serviceLevelGoodThreshold)),
     lossesWarnThreshold: Math.max(1, parseInt(f.lossesWarnThreshold.value, 10) || DEFAULT_SETTINGS.lossesWarnThreshold),
     similarIssuesEnabled: f.similarIssuesEnabled.checked,
+    agentTmaTableEnabled: f.agentTmaTableEnabled.checked,
   };
   saveSettingsToStorage(currentSettings);
   updateQueueChip(currentSettings);
+  applyAgentSectionVisibility(currentSettings);
   savedMsg.style.display = "block";
   setTimeout(() => (savedMsg.style.display = "none"), 2500);
 });
@@ -895,6 +955,7 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   currentSettings = { ...DEFAULT_SETTINGS };
   saveSettingsToStorage(currentSettings);
   fillForm(currentSettings);
+  applyAgentSectionVisibility(currentSettings);
 });
 document.getElementById("selectAllQueues").addEventListener("click", () => {
   queueListEl.querySelectorAll("input").forEach((c) => (c.checked = true));
@@ -1064,6 +1125,11 @@ async function refreshPanel() {
 
   const agentTableBody = document.getElementById("agentTableBody");
   const agentError = document.getElementById("agentError");
+  applyAgentSectionVisibility(settings);
+  if (!settings.agentTmaTableEnabled) {
+    // Desativado nas configurações: nem consulta o proxy do Painel RC pra essa tabela.
+    return;
+  }
   try {
     const panel = await callSupabaseFunction("painel-proxy", { method: "GET" });
     agentError.style.display = "none";
@@ -1117,6 +1183,13 @@ async function refreshPanel() {
 
 refreshPanel();
 setInterval(refreshPanel, 20000);
+// Mantém a aba de Inteligência viva enquanto estiver aberta, sem precisar
+// reabrir a aba ou clicar em "Atualizar" — a cada 5 min ela busca de novo o
+// histórico (mesmo intervalo da coleta), o que também é o que faz a hora
+// recém-fechada aparecer no mapa de calor e na previsão sem intervenção.
+setInterval(() => {
+  if (panelToggleBtn.dataset.current === "reports") loadReports();
+}, 5 * 60 * 1000);
 
 // ======================================================================
 // Inteligência & Relatórios — histórico, comparativos, heatmap, previsão
@@ -1144,10 +1217,21 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   }
 }
 
-async function fetchHourlyMetricsRaw({ fromDate, toDate, queueName } = {}) {
+// Monta o valor de um filtro PostgREST "in.(...)" com aspas/escape corretos
+// pra nomes de fila que têm espaço, hífen, parênteses etc.
+function postgrestInList(values) {
+  const quoted = values.map((v) => `"${String(v).replace(/"/g, '""')}"`);
+  return `in.(${quoted.join(",")})`;
+}
+
+async function fetchHourlyMetricsRaw({ fromDate, toDate, queueName, queueNames } = {}) {
   const params = new URLSearchParams();
   params.set("select", "metric_date,hour,weekday,week_of_month,iso_week,month,year,ended_count_hour,ended_count_accum_day,tme_seconds,tma_seconds,service_level,losses_percentage,waiting_count,queue_name");
-  if (queueName) params.set("queue_name", `eq.${queueName}`);
+  if (queueName) {
+    params.set("queue_name", `eq.${queueName}`);
+  } else if (queueNames && queueNames.length > 0) {
+    params.set("queue_name", postgrestInList(queueNames));
+  }
   params.set("order", "metric_date.asc,hour.asc");
   if (fromDate) params.append("metric_date", `gte.${fromDate}`);
   if (toDate) params.append("metric_date", `lte.${toDate}`);
@@ -1200,12 +1284,24 @@ function aggregateAllQueues(rows) {
   })).sort((a, b) => (a.metric_date + a.hour).localeCompare(b.metric_date + b.hour));
 }
 
-async function fetchHourlyMetrics({ fromDate, toDate } = {}) {
-  // Primeiro tenta a linha consolidada "TODAS (Food)", que é mais barata.
+// selectedQueues: null/undefined = todas as filas de Food. Array = só essas filas.
+async function fetchHourlyMetrics({ fromDate, toDate, selectedQueues } = {}) {
+  const isSpecificSubset = Array.isArray(selectedQueues) && selectedQueues.length > 0;
+
+  if (isSpecificSubset) {
+    // Filas específicas: sempre busca por fila individual e agrega no
+    // cliente só as escolhidas (não existe linha pré-agregada pra um
+    // subconjunto arbitrário de filas).
+    const perQueue = await fetchHourlyMetricsRaw({ fromDate, toDate, queueNames: selectedQueues });
+    return aggregateAllQueues(perQueue);
+  }
+
+  // Todas as filas: primeiro tenta a linha consolidada "TODAS (Food)", que é
+  // mais barata de consultar.
   const consolidated = await fetchHourlyMetricsRaw({ fromDate, toDate, queueName: QUEUE_NAME_ALL });
   if (consolidated.length > 0) return consolidated;
 
-  // Se não existir (job de coleta ainda não grava essa linha, ou gravou só
+  // Se não existir (job de coleta ainda não grava essa linha, ou grava só
   // por fila individual), busca tudo e agrega no cliente — assim a aba nunca
   // fica vazia/travada só por causa de uma linha agregada que não existe.
   const perQueue = await fetchHourlyMetricsRaw({ fromDate, toDate });
@@ -1253,13 +1349,13 @@ function renderComparisonCard(label, currentVal, previousVal, { unit = "", isTim
     </div>`;
 }
 
-async function renderComparisons() {
+async function renderComparisons(selectedQueues) {
   const grid = document.getElementById("comparisonsGrid");
   const today = todayLocalISODate();
   const yesterday = addDaysISO(today, -1);
   const lastWeekSameDay = addDaysISO(today, -7);
 
-  const all = await fetchHourlyMetrics({ fromDate: addDaysISO(today, -120), toDate: today });
+  const all = await fetchHourlyMetrics({ fromDate: addDaysISO(today, -120), toDate: today, selectedQueues });
 
   const rowsToday = all.filter((r) => r.metric_date === today);
   const rowsYesterday = all.filter((r) => r.metric_date === yesterday);
@@ -1301,12 +1397,22 @@ function colorForIntensity(value, max) {
 function renderHeatmap(all) {
   const wrap = document.getElementById("heatmapWrap");
 
-  // Média de ended_count_hour por (weekday, hour), ignorando o dia de hoje em andamento
+  // Média de ended_count_hour por (weekday, hour). Inclui os dias anteriores
+  // por completo, e também o dia de hoje — mas só as horas que já fecharam
+  // (ex.: às 11h, a hora das 10h já entra na média; a das 11h só entra depois
+  // que virar meio-dia). Assim o mapa vai se preenchendo ao longo do próprio
+  // dia, e não só a partir da semana seguinte.
   const today = todayLocalISODate();
-  const historical = all.filter((r) => r.metric_date !== today && r.ended_count_hour != null);
+  const todayWeekday = new Date().getDay() || 7;
+  const currentHour = new Date().getHours();
+  const historical = all.filter((r) => {
+    if (r.ended_count_hour == null) return false;
+    if (r.metric_date === today) return r.hour < currentHour;
+    return true;
+  });
 
   if (historical.length === 0) {
-    wrap.innerHTML = '<p class="reports-empty">Ainda não há dados suficientes pra montar o mapa de calor — volte em alguns dias.</p>';
+    wrap.innerHTML = '<p class="reports-empty">Ainda não há dados suficientes pra montar o mapa de calor — volte em algumas horas.</p>';
     return;
   }
 
@@ -1335,16 +1441,23 @@ function renderHeatmap(all) {
 
   let html = '<div class="heatmap-grid">';
   html += '<div class="heatmap-cell heatmap-head"></div>';
-  for (let wd = 1; wd <= 7; wd++) html += `<div class="heatmap-cell heatmap-head">${WEEKDAY_LABELS[wd]}</div>`;
+  for (let wd = 1; wd <= 7; wd++) {
+    const todayCls = wd === todayWeekday ? "heatmap-today" : "";
+    html += `<div class="heatmap-cell heatmap-head ${todayCls}">${WEEKDAY_LABELS[wd]}</div>`;
+  }
 
   for (const hour of REPORT_HOURS) {
     html += `<div class="heatmap-cell heatmap-hour">${String(hour).padStart(2, "0")}h</div>`;
     for (let wd = 1; wd <= 7; wd++) {
       const val = grid.find((g) => g[0] === wd && g[1] === hour)[2];
-      if (val == null) {
-        html += '<div class="heatmap-cell heatmap-empty">–</div>';
+      const isTodayCol = wd === todayWeekday ? "heatmap-today" : "";
+      const isInProgress = wd === todayWeekday && hour === currentHour;
+      if (isInProgress) {
+        html += `<div class="heatmap-cell heatmap-inprogress" title="${WEEKDAY_LABELS[wd]} ${hour}h — em andamento, fecha ao virar a hora">…</div>`;
+      } else if (val == null) {
+        html += `<div class="heatmap-cell heatmap-empty ${isTodayCol}">–</div>`;
       } else {
-        html += `<div class="heatmap-cell" style="background:${colorForIntensity(val, maxAvg)}" title="${WEEKDAY_LABELS[wd]} ${hour}h — média ${val.toFixed(1)}">${Math.round(val)}</div>`;
+        html += `<div class="heatmap-cell ${isTodayCol}" style="background:${colorForIntensity(val, maxAvg)}" title="${WEEKDAY_LABELS[wd]} ${hour}h — média ${val.toFixed(1)}">${Math.round(val)}</div>`;
       }
     }
   }
@@ -1435,7 +1548,7 @@ async function loadReports() {
     heatmapWrap.innerHTML = '<p class="reports-loading">Carregando…</p>';
     forecastBody.innerHTML = '<tr><td colspan="4" class="reports-loading">Carregando…</td></tr>';
 
-    const all = await renderComparisons();
+    const all = await renderComparisons(loadReportsSelectedQueues());
     renderHeatmap(all);
     renderForecast(all);
     renderHistoryRange(all);
@@ -1450,6 +1563,91 @@ async function loadReports() {
 }
 
 document.getElementById("refreshReportsBtn").addEventListener("click", loadReports);
+
+// ===================== Seletor de filas da aba de Inteligência =====================
+// Independente do seletor da tela de Configurações: aqui dá pra restringir a
+// análise (comparativos, mapa de calor, previsão) a filas específicas, ou
+// deixar em branco pra somar todas as filas de Food.
+const REPORTS_QUEUES_LS_KEY = "orionReportsSelectedQueues";
+
+function loadReportsSelectedQueues() {
+  try {
+    const raw = localStorage.getItem(REPORTS_QUEUES_LS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveReportsSelectedQueues(list) {
+  try {
+    if (!list || list.length === 0) localStorage.removeItem(REPORTS_QUEUES_LS_KEY);
+    else localStorage.setItem(REPORTS_QUEUES_LS_KEY, JSON.stringify(list));
+  } catch { /* localStorage indisponível — segue sem persistir */ }
+}
+
+function updateReportsQueueSummary() {
+  const selected = loadReportsSelectedQueues();
+  const el = document.getElementById("reportsQueueSummary");
+  if (!selected) {
+    el.textContent = `Todas as filas (${DEFAULT_QUEUE_SKILLS.length})`;
+  } else {
+    el.textContent = `${selected.length} de ${DEFAULT_QUEUE_SKILLS.length} filas selecionadas`;
+  }
+}
+
+const reportsQueuePicker = document.getElementById("reportsQueuePicker");
+const reportsQueueListEl = document.getElementById("reportsQueueList");
+
+function buildReportsQueueChecklist() {
+  const selected = loadReportsSelectedQueues();
+  const selectedSet = selected ? new Set(selected) : null;
+  reportsQueueListEl.innerHTML = "";
+  DEFAULT_QUEUE_SKILLS.forEach((skill, i) => {
+    const row = document.createElement("div");
+    row.className = "queue-item";
+    const id = `reportsQueue-${i}`;
+    row.innerHTML = `<input type="checkbox" id="${id}" value="${skill.replace(/"/g, "&quot;")}" ${!selectedSet || selectedSet.has(skill) ? "checked" : ""}><label for="${id}">${skill}</label>`;
+    reportsQueueListEl.appendChild(row);
+  });
+}
+
+document.getElementById("reportsToggleQueueList").addEventListener("click", () => {
+  const isOpen = reportsQueuePicker.style.display !== "none";
+  if (isOpen) {
+    reportsQueuePicker.style.display = "none";
+  } else {
+    buildReportsQueueChecklist();
+    reportsQueuePicker.style.display = "block";
+  }
+});
+
+document.getElementById("reportsSelectAllQueues").addEventListener("click", () => {
+  reportsQueueListEl.querySelectorAll("input").forEach((c) => (c.checked = true));
+});
+document.getElementById("reportsSelectNoneQueues").addEventListener("click", () => {
+  reportsQueueListEl.querySelectorAll("input").forEach((c) => (c.checked = false));
+});
+document.getElementById("reportsCancelQueues").addEventListener("click", () => {
+  reportsQueuePicker.style.display = "none";
+});
+document.getElementById("reportsApplyQueues").addEventListener("click", () => {
+  const checked = Array.from(reportsQueueListEl.querySelectorAll("input:checked")).map((c) => c.value);
+  if (checked.length === 0) {
+    alert("Selecione ao menos uma fila (ou clique em \"Selecionar todas\").");
+    return;
+  }
+  // Todas marcadas equivale a "sem filtro" (fica mais barato: usa a linha consolidada).
+  const toSave = checked.length === DEFAULT_QUEUE_SKILLS.length ? null : checked;
+  saveReportsSelectedQueues(toSave);
+  updateReportsQueueSummary();
+  reportsQueuePicker.style.display = "none";
+  loadReports();
+});
+
+updateReportsQueueSummary();
 
 </script>
 </body>
