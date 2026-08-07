@@ -319,8 +319,8 @@
   .comparison-card__label { margin: 0 0 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--teal-700); }
   .comparison-card__value { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 800; color: var(--ink); }
   .comparison-card__delta { margin: 4px 0 0; font-size: 12px; font-weight: 700; }
-  .comparison-card__delta[data-trend="up"] { color: var(--red-crit); }
-  .comparison-card__delta[data-trend="down"] { color: var(--green-ok); }
+  .comparison-card__delta[data-trend="good"] { color: var(--green-ok); }
+  .comparison-card__delta[data-trend="bad"] { color: var(--red-crit); }
   .comparison-card__delta[data-trend="flat"] { color: var(--ink-soft); }
   .comparison-card__empty { font-size: 12px; color: var(--ink-faint); font-style: italic; }
 
@@ -1329,16 +1329,40 @@ function avgBy(rows, key) {
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
-function renderComparisonCard(label, currentVal, previousVal, { unit = "", isTimeSeconds = false } = {}) {
+// Média ponderada pelo volume de atendimentos de cada hora (ended_count_hour).
+// Diferente de avgBy, ignora horas sem nenhum atendimento (peso 0) — uma
+// madrugada inteira com "service_level: 0" (porque não houve base de
+// cálculo) não deve arrastar pra baixo a média do dia, do mesmo jeito que o
+// Wallboard/Painel RC já calcula o indicador do dia todo.
+function weightedAvgBy(rows, valueKey, weightKey = "ended_count_hour") {
+  let sumWeighted = 0;
+  let sumWeight = 0;
+  rows.forEach((r) => {
+    const w = Number(r[weightKey]);
+    const v = Number(r[valueKey]);
+    if (!Number.isFinite(w) || w <= 0) return;
+    if (!Number.isFinite(v)) return;
+    sumWeighted += v * w;
+    sumWeight += w;
+  });
+  return sumWeight > 0 ? sumWeighted / sumWeight : null;
+}
+
+// higherIsBetter define a semântica de cor/seta: cada indicador tem seu
+// próprio "sentido bom" (Nível de Serviço: maior é melhor; TME/TMA/Volume:
+// menor é melhor). A seta sempre reflete o sinal aritmético (▲ = subiu,
+// ▼ = desceu); a COR é que muda conforme esse sentido for favorável ou não.
+function renderComparisonCard(label, currentVal, previousVal, opts = {}) {
+  const { unit = "", isTimeSeconds = false, higherIsBetter = false, compareLabel = "vs. referência" } = opts;
   const hasBoth = currentVal != null && previousVal != null;
   const fmt = (v) => (isTimeSeconds ? formatSeconds(v) : `${Math.round(v)}${unit}`);
 
   let deltaHtml = '<p class="comparison-card__empty">Sem dados suficientes para comparar.</p>';
   if (hasBoth && previousVal !== 0) {
     const diffPct = Math.round(((currentVal - previousVal) / previousVal) * 100);
-    const trend = diffPct > 0 ? "up" : diffPct < 0 ? "down" : "flat";
     const arrow = diffPct > 0 ? "▲" : diffPct < 0 ? "▼" : "＝";
-    deltaHtml = `<p class="comparison-card__delta" data-trend="${trend}">${arrow} ${Math.abs(diffPct)}% vs. referência</p>`;
+    const trend = diffPct === 0 ? "flat" : (diffPct > 0) === higherIsBetter ? "good" : "bad";
+    deltaHtml = `<p class="comparison-card__delta" data-trend="${trend}">${arrow} ${Math.abs(diffPct)}% ${compareLabel}</p>`;
   }
 
   return `
@@ -1349,19 +1373,17 @@ function renderComparisonCard(label, currentVal, previousVal, { unit = "", isTim
     </div>`;
 }
 
-async function renderComparisons(selectedQueues) {
+function computeComparisons(all, todayWeekdayHint) {
   const grid = document.getElementById("comparisonsGrid");
   const today = todayLocalISODate();
   const yesterday = addDaysISO(today, -1);
   const lastWeekSameDay = addDaysISO(today, -7);
 
-  const all = await fetchHourlyMetrics({ fromDate: addDaysISO(today, -120), toDate: today, selectedQueues });
-
   const rowsToday = all.filter((r) => r.metric_date === today);
   const rowsYesterday = all.filter((r) => r.metric_date === yesterday);
   const rowsLastWeek = all.filter((r) => r.metric_date === lastWeekSameDay);
 
-  const todayWeekday = rowsToday[0]?.weekday ?? (new Date().getDay() || 7);
+  const todayWeekday = rowsToday[0]?.weekday ?? todayWeekdayHint ?? (new Date().getDay() || 7);
   const historicalSameWeekday = all.filter((r) => r.weekday === todayWeekday && r.metric_date !== today);
   const historicalAvgTotal = (() => {
     const byDate = {};
@@ -1375,14 +1397,25 @@ async function renderComparisons(selectedQueues) {
   const totalLastWeek = rowsLastWeek.length ? Math.max(...rowsLastWeek.map((r) => r.ended_count_accum_day || 0)) : null;
 
   grid.innerHTML = [
-    renderComparisonCard("Hoje x Ontem (volume)", totalToday, totalYesterday),
-    renderComparisonCard(`Hoje x ${WEEKDAY_LABELS[todayWeekday]} passada`, totalToday, totalLastWeek),
-    renderComparisonCard("Hoje x média histórica do dia", totalToday, historicalAvgTotal),
-    renderComparisonCard("TME hoje x ontem", avgBy(rowsToday, "tme_seconds"), avgBy(rowsYesterday, "tme_seconds"), { isTimeSeconds: true }),
-    renderComparisonCard("TMA hoje x ontem", avgBy(rowsToday, "tma_seconds"), avgBy(rowsYesterday, "tma_seconds"), { isTimeSeconds: true }),
-    renderComparisonCard("Nível de Serviço hoje x ontem", avgBy(rowsToday, "service_level"), avgBy(rowsYesterday, "service_level"), { unit: "%" }),
+    // Quatro cards principais: Hoje x Ontem, sempre valor de hoje em destaque
+    // + variação percentual logo abaixo, com cor conforme o sentido bom de
+    // cada indicador.
+    renderComparisonCard("Volume — hoje x ontem", totalToday, totalYesterday, { higherIsBetter: false, compareLabel: "em relação a ontem" }),
+    renderComparisonCard("TME — hoje x ontem", weightedAvgBy(rowsToday, "tme_seconds"), weightedAvgBy(rowsYesterday, "tme_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
+    renderComparisonCard("TMA — hoje x ontem", weightedAvgBy(rowsToday, "tma_seconds"), weightedAvgBy(rowsYesterday, "tma_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
+    renderComparisonCard("Nível de Serviço — hoje x ontem", weightedAvgBy(rowsToday, "service_level"), weightedAvgBy(rowsYesterday, "service_level"), { unit: "%", higherIsBetter: true, compareLabel: "em relação a ontem" }),
+    // Cards extras de volume (contexto adicional, mesma semântica "menor é melhor")
+    renderComparisonCard(`Volume — hoje x ${WEEKDAY_LABELS[todayWeekday]} passada`, totalToday, totalLastWeek, { higherIsBetter: false, compareLabel: "vs. semana passada" }),
+    renderComparisonCard("Volume — hoje x média histórica do dia", totalToday, historicalAvgTotal, { higherIsBetter: false, compareLabel: "vs. média histórica" }),
   ].join("");
 
+  return { todayWeekday };
+}
+
+async function renderComparisons(selectedQueues) {
+  const today = todayLocalISODate();
+  const all = await fetchHourlyMetrics({ fromDate: addDaysISO(today, -120), toDate: today, selectedQueues });
+  computeComparisons(all);
   return all;
 }
 
