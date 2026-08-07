@@ -1183,13 +1183,15 @@ async function refreshPanel() {
 
 refreshPanel();
 setInterval(refreshPanel, 20000);
-// Mantém a aba de Inteligência viva enquanto estiver aberta, sem precisar
-// reabrir a aba ou clicar em "Atualizar" — a cada 5 min ela busca de novo o
-// histórico (mesmo intervalo da coleta), o que também é o que faz a hora
-// recém-fechada aparecer no mapa de calor e na previsão sem intervenção.
+// A coleta em segundo plano grava no banco a cada 5 minutos. Consultar
+// esse banco não tem o mesmo custo/risco de chamar o Wallboard direto
+// (não é uma API de terceiro com limite de taxa desconhecido) — então
+// aqui a aba de Inteligência é atualizada a cada 60s enquanto estiver
+// aberta, pra mostrar cada novo dado da coleta assim que ele chega, em
+// vez de esperar até 5 minutos pra "notar" a atualização.
 setInterval(() => {
   if (panelToggleBtn.dataset.current === "reports") loadReports();
-}, 5 * 60 * 1000);
+}, 60 * 1000);
 
 // ======================================================================
 // Inteligência & Relatórios — histórico, comparativos, heatmap, previsão
@@ -1330,10 +1332,9 @@ function avgBy(rows, key) {
 }
 
 // Média ponderada pelo volume de atendimentos de cada hora (ended_count_hour).
-// Diferente de avgBy, ignora horas sem nenhum atendimento (peso 0) — uma
-// madrugada inteira com "service_level: 0" (porque não houve base de
-// cálculo) não deve arrastar pra baixo a média do dia, do mesmo jeito que o
-// Wallboard/Painel RC já calcula o indicador do dia todo.
+// Usada só para métricas que fazem sentido médias entre horas distintas
+// (nenhuma das 4 principais usa isso mais — ver lastValueOfDay abaixo —
+// mas mantida pra eventuais métricas futuras que sejam, de fato, por hora).
 function weightedAvgBy(rows, valueKey, weightKey = "ended_count_hour") {
   let sumWeighted = 0;
   let sumWeight = 0;
@@ -1346,6 +1347,20 @@ function weightedAvgBy(rows, valueKey, weightKey = "ended_count_hour") {
     sumWeight += w;
   });
   return sumWeight > 0 ? sumWeighted / sumWeight : null;
+}
+
+// TME, TMA e Nível de Serviço vêm do Wallboard como valores JÁ ACUMULADOS
+// do dia (cada linha de hourly_metrics guarda "o dia até aquele momento",
+// igual o volume acumulado) — não são uma métrica isolada por hora. Por
+// isso o valor "de hoje" certo é o da ÚLTIMA leitura do dia (maior hora
+// com valor presente), nunca uma média entre leituras. Fazer média das
+// leituras acumuladas ao longo do dia foi o bug que gerava números como
+// "64%" quando o painel principal mostrava "96%".
+function lastValueOfDay(rows, valueKey) {
+  const withValue = rows.filter((r) => r[valueKey] != null && r[valueKey] !== "");
+  if (withValue.length === 0) return null;
+  withValue.sort((a, b) => b.hour - a.hour);
+  return Number(withValue[0][valueKey]);
 }
 
 // higherIsBetter define a semântica de cor/seta: cada indicador tem seu
@@ -1397,13 +1412,16 @@ function computeComparisons(all, todayWeekdayHint) {
   const totalLastWeek = rowsLastWeek.length ? Math.max(...rowsLastWeek.map((r) => r.ended_count_accum_day || 0)) : null;
 
   grid.innerHTML = [
-    // Quatro cards principais: Hoje x Ontem, sempre valor de hoje em destaque
-    // + variação percentual logo abaixo, com cor conforme o sentido bom de
-    // cada indicador.
+    // Ordem solicitada: primeiro os indicadores de qualidade da operação
+    // (TME, TMA, Nível de Serviço), depois volume. TME/TMA/Nível de
+    // Serviço usam a ÚLTIMA leitura do dia (lastValueOfDay) — são valores
+    // acumulados-do-dia vindos do Wallboard, não uma métrica por hora, então
+    // não faz sentido tirar média entre leituras (era isso que causava o
+    // "64%" divergindo do "96%" mostrado no painel principal).
+    renderComparisonCard("TME — hoje x ontem", lastValueOfDay(rowsToday, "tme_seconds"), lastValueOfDay(rowsYesterday, "tme_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
+    renderComparisonCard("TMA — hoje x ontem", lastValueOfDay(rowsToday, "tma_seconds"), lastValueOfDay(rowsYesterday, "tma_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
+    renderComparisonCard("Nível de Serviço — hoje x ontem", lastValueOfDay(rowsToday, "service_level"), lastValueOfDay(rowsYesterday, "service_level"), { unit: "%", higherIsBetter: true, compareLabel: "em relação a ontem" }),
     renderComparisonCard("Volume — hoje x ontem", totalToday, totalYesterday, { higherIsBetter: false, compareLabel: "em relação a ontem" }),
-    renderComparisonCard("TME — hoje x ontem", weightedAvgBy(rowsToday, "tme_seconds"), weightedAvgBy(rowsYesterday, "tme_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
-    renderComparisonCard("TMA — hoje x ontem", weightedAvgBy(rowsToday, "tma_seconds"), weightedAvgBy(rowsYesterday, "tma_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
-    renderComparisonCard("Nível de Serviço — hoje x ontem", weightedAvgBy(rowsToday, "service_level"), weightedAvgBy(rowsYesterday, "service_level"), { unit: "%", higherIsBetter: true, compareLabel: "em relação a ontem" }),
     // Cards extras de volume (contexto adicional, mesma semântica "menor é melhor")
     renderComparisonCard(`Volume — hoje x ${WEEKDAY_LABELS[todayWeekday]} passada`, totalToday, totalLastWeek, { higherIsBetter: false, compareLabel: "vs. semana passada" }),
     renderComparisonCard("Volume — hoje x média histórica do dia", totalToday, historicalAvgTotal, { higherIsBetter: false, compareLabel: "vs. média histórica" }),
@@ -1486,7 +1504,14 @@ function renderHeatmap(all) {
       const isTodayCol = wd === todayWeekday ? "heatmap-today" : "";
       const isInProgress = wd === todayWeekday && hour === currentHour;
       if (isInProgress) {
-        html += `<div class="heatmap-cell heatmap-inprogress" title="${WEEKDAY_LABELS[wd]} ${hour}h — em andamento, fecha ao virar a hora">…</div>`;
+        // Hora em andamento: mostra o valor já registrado até agora (a
+        // coleta grava a cada 5 min, então este número reflete a operação
+        // com no máximo 5 min de atraso — não precisa esperar a hora
+        // fechar). Continua com o mesmo destaque visual de "em andamento".
+        const liveRow = all.find((r) => r.metric_date === today && r.hour === hour);
+        const liveVal = liveRow?.ended_count_hour;
+        const liveLabel = liveVal != null ? liveVal : "–";
+        html += `<div class="heatmap-cell heatmap-inprogress" style="background:${liveVal != null ? colorForIntensity(liveVal, maxAvg) : "transparent"}" title="${WEEKDAY_LABELS[wd]} ${hour}h — em andamento, ${liveVal != null ? `${liveVal} até agora` : "sem leitura ainda"} (atualiza a cada 5 min)">${liveLabel}</div>`;
       } else if (val == null) {
         html += `<div class="heatmap-cell heatmap-empty ${isTodayCol}">–</div>`;
       } else {
