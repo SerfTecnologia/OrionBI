@@ -78,14 +78,12 @@
     background: linear-gradient(90deg, var(--cyan-500) 0%, var(--teal-600) 30%, var(--navy-900) 62%, var(--navy-950) 100%);
     color: white; box-shadow: var(--shadow-lg);
     position: relative; overflow: hidden;
-    transition: max-height .28s ease, opacity .2s ease, padding-top .28s ease, padding-bottom .28s ease;
+    max-height: 160px;
+    transition: max-height .28s ease, opacity .22s ease, padding-top .28s ease, padding-bottom .28s ease, box-shadow .22s ease;
   }
-  .header.is-hidden-scroll {
-    max-height: 0 !important;
-    opacity: 0;
-    padding-top: 0; padding-bottom: 0;
-    box-shadow: none;
-    pointer-events: none;
+  .header.header--hidden {
+    max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0;
+    box-shadow: none; pointer-events: none; overflow: hidden;
   }
   .header::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -132,8 +130,7 @@
 
   /* ===================== Panels ===================== */
   .panel { display: none; min-height: 0; }
-  .panel.is-active { display: flex; flex-direction: column; gap: clamp(10px, 1.1vw, 15px); flex: 1 1 auto; min-height: 0; }
-  #panel-config.is-active { overflow-y: auto; padding-right: 4px; }
+  .panel.is-active { display: flex; flex-direction: column; gap: clamp(10px, 1.1vw, 15px); flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
 
   .config-head { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; padding: 2px 2px 0; }
   .config-head h2 { margin: 0; font-size: 16px; font-family: var(--font-display); font-weight: 800; color: var(--ink); }
@@ -353,60 +350,34 @@
   .forecast-table td.diff-down { color: var(--green-ok); font-weight: 700; }
   .forecast-table tr.is-current-hour td { background: var(--canvas-edge); font-weight: 700; }
 
-  /* ===================== Responsivo (celular/tablet) ===================== */
-  @media (max-width: 700px) {
-    html { -webkit-text-size-adjust: 100%; }
-
-    body { overflow: hidden; }
-    .page {
-      height: 100vh; height: 100dvh; /* dvh corrige a barra de endereço do navegador móvel */
-      padding: 10px 10px 12px;
-      gap: 8px;
-    }
-
-    /* Header: quebra em 2 linhas — marca+botões numa linha, chips na linha de baixo */
-    .header { flex-wrap: wrap; row-gap: 8px; padding: 10px 12px; border-radius: 14px; }
-    .header__brand { order: 1; flex: 1 1 auto; min-width: 0; }
-    .header__brand h1 { font-size: 18px; }
-    .header__subtitle { font-size: 11.5px; }
-    .header__mark { width: 32px; height: 32px; }
-    #reportsToggleBtn, #panelToggleBtn { order: 2; width: 36px; height: 36px; }
-    .header__right { order: 3; flex: 1 1 100%; width: 100%; align-items: flex-start; }
-    .header__chips { width: 100%; }
-    .chip, .status-pill { font-size: 12px; padding: 6px 10px; }
-    .header__updated { font-size: 10px; }
-
-    /* Tabs/config/relatórios: tudo em coluna única, sem colunas lado a lado */
-    .grid-top { grid-template-columns: 1fr !important; }
-    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
-    .field-grid { grid-template-columns: 1fr !important; }
-    .comparisons-grid { grid-template-columns: 1fr 1fr !important; gap: 8px; }
-    .metric-row__fields { grid-template-columns: 1fr !important; padding-left: 0 !important; }
-
-    .card { padding: 14px 14px; border-radius: 12px; }
-    .config-head h2 { font-size: 15px; }
-
-    /* Tabelas com muita coluna (previsão, agentes): permite rolagem
-       horizontal em vez de espremer o conteúdo até ficar ilegível */
-    .table-wrap, .heatmap-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .forecast-table, .agent-table { font-size: 11.5px; }
-    .forecast-table th, .forecast-table td, .agent-table th, .agent-table td { padding: 6px 7px; }
-
-    .heatmap-grid { min-width: 620px; } /* mantém a legibilidade das 24 linhas x 7 colunas, rola de lado */
-
-    .waiting-card__value { font-size: clamp(34px, 11vw, 52px); }
-
-    /* Botões e áreas de toque com tamanho confortável no dedo */
-    .icon-btn, .link-btn, .btn { min-height: 34px; }
-    input[type="number"], input[type="text"], select { font-size: 15px; } /* evita zoom automático do iOS em inputs */
-
-    .queue-list { max-height: 220px; }
+  /* ===================== Responsividade (tablets e celulares) ===================== */
+  @media (max-width: 900px) {
+    .page { padding: 10px 12px; gap: 8px; }
+    .header { flex-wrap: wrap; row-gap: 10px; padding: 12px 14px; }
+    .header__brand { flex: 1 1 auto; min-width: 0; }
+    .header__right { order: 3; flex: 1 1 100%; align-items: flex-start; }
+    .header__chips { justify-content: flex-start; }
+    .header__updated { align-self: flex-start; }
   }
-
+  @media (max-width: 640px) {
+    .header__subtitle { display: none; }
+    .header h1 { font-size: 18px; }
+    .card { padding: 14px 15px; }
+    .config-head h2, .reports-hint { font-size: 14px; }
+    .comparisons-grid { grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 8px; }
+    .comparison-card { padding: 12px; }
+    .agent-table, .forecast-table { font-size: 11.5px; }
+    .agent-table th, .agent-table td, .forecast-table th, .forecast-table td { padding: 8px 8px; }
+    .actions { flex-wrap: wrap; }
+    .actions .btn { flex: 1 1 130px; }
+    .field-grid { gap: 12px 14px; }
+    .topics-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  }
   @media (max-width: 420px) {
-    .comparisons-grid { grid-template-columns: 1fr !important; }
-    .stat-grid { grid-template-columns: 1fr 1fr !important; }
-    .header__brand h1 { font-size: 16px; }
+    .header__mark { display: none; }
+    .icon-btn { width: 36px; height: 36px; }
+    .waiting-card__value { font-size: clamp(30px, 11vw, 46px); }
+    .comparisons-grid { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -764,7 +735,7 @@
       <div id="heatmapWrap" class="heatmap-wrap">
         <p class="reports-loading">Carregando…</p>
       </div>
-      <p class="reports-footnote">Os números mostram o volume real <strong>desta semana</strong>. Passe o mouse sobre um quadradinho para ver a média histórica daquele mesmo dia/horário. Cor mais forte = mais atendimentos, comparado ao pico desta semana.</p>
+      <p class="reports-footnote">Cor mais forte = mais atendimentos, na média histórica daquele horário/dia da semana.</p>
     </div>
 
     <div class="card">
@@ -914,9 +885,9 @@ function setPanel(name) {
 
   panelToggleBtn.dataset.current = name;
 
-  // Ao sair da aba de Inteligência, garante que o header volte visível —
-  // o esconder-ao-rolar só faz sentido lá dentro.
-  if (name !== "reports") showHeaderOnScroll();
+  // Header só some com o scroll dentro da aba de Inteligência & Relatórios;
+  // ao sair dela, garante que volte visível.
+  if (name !== "reports") document.querySelector(".header").classList.remove("header--hidden");
 
   if (name === "reports") loadReports();
 }
@@ -928,44 +899,6 @@ reportsToggleBtn.addEventListener("click", () => {
 });
 document.getElementById("backToPanelBtn").addEventListener("click", () => setPanel("painel"));
 setPanel("painel");
-
-// ---------- Header esconde ao rolar (só dentro da aba de Inteligência) ----------
-// A página não rola no nível do body (é um shell de altura fixa) — quem
-// rola é o próprio painel ativo. Por isso o listener vai no scroll do
-// #panel-reports, não em window/document.
-const headerEl = document.querySelector(".header");
-const reportsScrollEl = document.getElementById("panel-reports");
-
-function freezeHeaderNaturalHeight() {
-  // max-height precisa de um valor em px pra animar (não funciona com
-  // "none"). Mede a altura real e trava isso como o "estado visível".
-  headerEl.style.maxHeight = `${headerEl.scrollHeight}px`;
-}
-function hideHeaderOnScroll() { headerEl.classList.add("is-hidden-scroll"); }
-function showHeaderOnScroll() { headerEl.classList.remove("is-hidden-scroll"); }
-
-freezeHeaderNaturalHeight();
-window.addEventListener("resize", freezeHeaderNaturalHeight);
-
-let lastScrollTop = 0;
-const SCROLL_HIDE_THRESHOLD = 24; // px mínimos rolados antes de reagir, evita tremor com micro-scrolls
-
-reportsScrollEl.addEventListener("scroll", () => {
-  const current = reportsScrollEl.scrollTop;
-
-  if (current <= SCROLL_HIDE_THRESHOLD) {
-    // Bem no topo: header sempre visível, sem exceção.
-    showHeaderOnScroll();
-  } else if (current > lastScrollTop) {
-    // Rolando pra baixo: esconde.
-    hideHeaderOnScroll();
-  } else if (current < lastScrollTop) {
-    // Rolando pra cima: mostra de novo (padrão comum de app mobile).
-    showHeaderOnScroll();
-  }
-
-  lastScrollTop = current;
-}, { passive: true });
 
 // ===================== Config form =====================
 const form = document.getElementById("settingsForm");
@@ -1289,15 +1222,13 @@ async function refreshPanel() {
 
 refreshPanel();
 setInterval(refreshPanel, 20000);
-// A coleta em segundo plano grava no banco a cada 5 minutos. Consultar
-// esse banco não tem o mesmo custo/risco de chamar o Wallboard direto
-// (não é uma API de terceiro com limite de taxa desconhecido) — então
-// aqui a aba de Inteligência é atualizada a cada 60s enquanto estiver
-// aberta, pra mostrar cada novo dado da coleta assim que ele chega, em
-// vez de esperar até 5 minutos pra "notar" a atualização.
+// Mantém a aba de Inteligência viva enquanto estiver aberta, sem precisar
+// reabrir a aba ou clicar em "Atualizar" — a cada 5 min ela busca de novo o
+// histórico (mesmo intervalo da coleta), o que também é o que faz a hora
+// recém-fechada aparecer no mapa de calor e na previsão sem intervenção.
 setInterval(() => {
   if (panelToggleBtn.dataset.current === "reports") loadReports();
-}, 60 * 1000);
+}, 5 * 60 * 1000);
 
 // ======================================================================
 // Inteligência & Relatórios — histórico, comparativos, heatmap, previsão
@@ -1438,9 +1369,10 @@ function avgBy(rows, key) {
 }
 
 // Média ponderada pelo volume de atendimentos de cada hora (ended_count_hour).
-// Usada só para métricas que fazem sentido médias entre horas distintas
-// (nenhuma das 4 principais usa isso mais — ver lastValueOfDay abaixo —
-// mas mantida pra eventuais métricas futuras que sejam, de fato, por hora).
+// Diferente de avgBy, ignora horas sem nenhum atendimento (peso 0) — uma
+// madrugada inteira com "service_level: 0" (porque não houve base de
+// cálculo) não deve arrastar pra baixo a média do dia, do mesmo jeito que o
+// Wallboard/Painel RC já calcula o indicador do dia todo.
 function weightedAvgBy(rows, valueKey, weightKey = "ended_count_hour") {
   let sumWeighted = 0;
   let sumWeight = 0;
@@ -1453,20 +1385,6 @@ function weightedAvgBy(rows, valueKey, weightKey = "ended_count_hour") {
     sumWeight += w;
   });
   return sumWeight > 0 ? sumWeighted / sumWeight : null;
-}
-
-// TME, TMA e Nível de Serviço vêm do Wallboard como valores JÁ ACUMULADOS
-// do dia (cada linha de hourly_metrics guarda "o dia até aquele momento",
-// igual o volume acumulado) — não são uma métrica isolada por hora. Por
-// isso o valor "de hoje" certo é o da ÚLTIMA leitura do dia (maior hora
-// com valor presente), nunca uma média entre leituras. Fazer média das
-// leituras acumuladas ao longo do dia foi o bug que gerava números como
-// "64%" quando o painel principal mostrava "96%".
-function lastValueOfDay(rows, valueKey) {
-  const withValue = rows.filter((r) => r[valueKey] != null && r[valueKey] !== "");
-  if (withValue.length === 0) return null;
-  withValue.sort((a, b) => b.hour - a.hour);
-  return Number(withValue[0][valueKey]);
 }
 
 // higherIsBetter define a semântica de cor/seta: cada indicador tem seu
@@ -1518,16 +1436,13 @@ function computeComparisons(all, todayWeekdayHint) {
   const totalLastWeek = rowsLastWeek.length ? Math.max(...rowsLastWeek.map((r) => r.ended_count_accum_day || 0)) : null;
 
   grid.innerHTML = [
-    // Ordem solicitada: primeiro os indicadores de qualidade da operação
-    // (TME, TMA, Nível de Serviço), depois volume. TME/TMA/Nível de
-    // Serviço usam a ÚLTIMA leitura do dia (lastValueOfDay) — são valores
-    // acumulados-do-dia vindos do Wallboard, não uma métrica por hora, então
-    // não faz sentido tirar média entre leituras (era isso que causava o
-    // "64%" divergindo do "96%" mostrado no painel principal).
-    renderComparisonCard("TME — hoje x ontem", lastValueOfDay(rowsToday, "tme_seconds"), lastValueOfDay(rowsYesterday, "tme_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
-    renderComparisonCard("TMA — hoje x ontem", lastValueOfDay(rowsToday, "tma_seconds"), lastValueOfDay(rowsYesterday, "tma_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
-    renderComparisonCard("Nível de Serviço — hoje x ontem", lastValueOfDay(rowsToday, "service_level"), lastValueOfDay(rowsYesterday, "service_level"), { unit: "%", higherIsBetter: true, compareLabel: "em relação a ontem" }),
+    // Quatro cards principais: Hoje x Ontem, sempre valor de hoje em destaque
+    // + variação percentual logo abaixo, com cor conforme o sentido bom de
+    // cada indicador.
     renderComparisonCard("Volume — hoje x ontem", totalToday, totalYesterday, { higherIsBetter: false, compareLabel: "em relação a ontem" }),
+    renderComparisonCard("TME — hoje x ontem", weightedAvgBy(rowsToday, "tme_seconds"), weightedAvgBy(rowsYesterday, "tme_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
+    renderComparisonCard("TMA — hoje x ontem", weightedAvgBy(rowsToday, "tma_seconds"), weightedAvgBy(rowsYesterday, "tma_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
+    renderComparisonCard("Nível de Serviço — hoje x ontem", weightedAvgBy(rowsToday, "service_level"), weightedAvgBy(rowsYesterday, "service_level"), { unit: "%", higherIsBetter: true, compareLabel: "em relação a ontem" }),
     // Cards extras de volume (contexto adicional, mesma semântica "menor é melhor")
     renderComparisonCard(`Volume — hoje x ${WEEKDAY_LABELS[todayWeekday]} passada`, totalToday, totalLastWeek, { higherIsBetter: false, compareLabel: "vs. semana passada" }),
     renderComparisonCard("Volume — hoje x média histórica do dia", totalToday, historicalAvgTotal, { higherIsBetter: false, compareLabel: "vs. média histórica" }),
@@ -1551,11 +1466,11 @@ function colorForIntensity(value, max) {
   return `rgba(15, 118, 144, ${alpha.toFixed(2)})`; // teal-700 aproximado em rgba
 }
 
-function isoMondayOf(dateISO) {
+function mondayOfWeekISO(dateISO) {
   const d = new Date(`${dateISO}T00:00:00`);
-  const weekday = d.getDay() || 7; // 1=Seg..7=Dom
-  d.setDate(d.getDate() - (weekday - 1));
-  return d.toISOString().slice(0, 10);
+  const isoWeekday = d.getDay() || 7; // 1..7 (1 = segunda)
+  d.setDate(d.getDate() - (isoWeekday - 1));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function renderHeatmap(all) {
@@ -1564,51 +1479,47 @@ function renderHeatmap(all) {
   const today = todayLocalISODate();
   const todayWeekday = new Date().getDay() || 7;
   const currentHour = new Date().getHours();
+  const mondayISO = mondayOfWeekISO(today);
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDaysISO(mondayISO, i)); // índice 0 = segunda desta semana
 
-  // "Esta semana" = de segunda a domingo da semana corrente (ISO).
-  const mondayThisWeek = isoMondayOf(today);
-  const sundayThisWeek = addDaysISO(mondayThisWeek, 6);
+  // O que aparece ESCRITO em cada quadradinho é o valor REAL desta semana
+  // (data específica de segunda a domingo da semana corrente) — não uma
+  // média. Só ao passar o mouse é que mostramos a média histórica (todas as
+  // outras semanas/dias já coletados para aquele mesmo dia da semana + hora).
+  const rowsByDateHour = {};
+  all.forEach((r) => { rowsByDateHour[`${r.metric_date}-${r.hour}`] = r; });
 
-  // Mapa (weekday-hour) -> valor de ESTA semana, pra exibir dentro do
-  // quadradinho. Só uma data cai em cada combinação weekday dentro da
-  // semana corrente, então não precisa de média aqui — é o valor real
-  // daquele dia específico.
-  const thisWeekRows = all.filter((r) => r.metric_date >= mondayThisWeek && r.metric_date <= sundayThisWeek);
-  const thisWeekMap = {};
-  thisWeekRows.forEach((r) => {
-    if (r.ended_count_hour == null) return;
-    // Ignora a hora em andamento aqui — ela é tratada à parte, com o
-    // valor "vivo" (ver isInProgress abaixo), pra não ficar competindo
-    // com a atualização em tempo real.
-    if (r.metric_date === today && r.hour === currentHour) return;
-    thisWeekMap[`${r.weekday}-${r.hour}`] = r.ended_count_hour;
+  // Pool histórico (todas as horas já fechadas, de qualquer data) — usado só
+  // pro tooltip, nunca pro número visível do quadradinho.
+  const historical = all.filter((r) => {
+    if (r.ended_count_hour == null) return false;
+    if (r.metric_date === today) return r.hour < currentHour;
+    return true;
   });
 
-  // Média histórica (todas as semanas ANTERIORES a esta) por (weekday,
-  // hour) — usada só no tooltip, nunca no número visível do quadradinho.
-  const historical = all.filter((r) => r.ended_count_hour != null && r.metric_date < mondayThisWeek);
-
-  if (thisWeekRows.length === 0 && historical.length === 0) {
+  if (historical.length === 0 && weekDates.every((d) => !all.some((r) => r.metric_date === d))) {
     wrap.innerHTML = '<p class="reports-empty">Ainda não há dados suficientes pra montar o mapa de calor — volte em algumas horas.</p>';
     return;
   }
 
-  const histBuckets = {}; // "weekday-hour" -> {sum, count}
+  const buckets = {}; // "weekday-hour" -> {sum, count}
   historical.forEach((r) => {
     const key = `${r.weekday}-${r.hour}`;
-    if (!histBuckets[key]) histBuckets[key] = { sum: 0, count: 0 };
-    histBuckets[key].sum += r.ended_count_hour;
-    histBuckets[key].count += 1;
+    if (!buckets[key]) buckets[key] = { sum: 0, count: 0 };
+    buckets[key].sum += r.ended_count_hour;
+    buckets[key].count += 1;
   });
-  const histAvgFor = (weekday, hour) => {
-    const b = histBuckets[`${weekday}-${hour}`];
-    return b ? b.sum / b.count : null;
-  };
 
-  // Intensidade da cor: relativa ao maior valor DESTA semana (o objetivo é
-  // ver os horários de pico da semana atual, não comparar contra o
-  // histórico inteiro).
-  const maxThisWeek = Math.max(0, ...Object.values(thisWeekMap));
+  let maxAvg = 0;
+  const historicalAvgFor = (weekday, hour) => {
+    const b = buckets[`${weekday}-${hour}`];
+    if (!b) return null;
+    const avg = b.sum / b.count;
+    if (avg > maxAvg) maxAvg = avg;
+    return avg;
+  };
+  // Precomputa (pra ter maxAvg fechado antes de desenhar as cores)
+  for (const hour of REPORT_HOURS) for (let wd = 1; wd <= 7; wd++) historicalAvgFor(wd, hour);
 
   let html = '<div class="heatmap-grid">';
   html += '<div class="heatmap-cell heatmap-head"></div>';
@@ -1620,28 +1531,22 @@ function renderHeatmap(all) {
   for (const hour of REPORT_HOURS) {
     html += `<div class="heatmap-cell heatmap-hour">${String(hour).padStart(2, "0")}h</div>`;
     for (let wd = 1; wd <= 7; wd++) {
+      const cellDate = weekDates[wd - 1];
       const isTodayCol = wd === todayWeekday ? "heatmap-today" : "";
-      const isInProgress = wd === todayWeekday && hour === currentHour;
-      const isFuture = wd > todayWeekday || (wd === todayWeekday && hour > currentHour);
-      const histAvg = histAvgFor(wd, hour);
-      const histLabel = histAvg != null ? `Média histórica: ${histAvg.toFixed(1)}` : "Média histórica: sem dados ainda";
+      const isFuture = cellDate > today || (cellDate === today && hour > currentHour);
+      const isInProgress = cellDate === today && hour === currentHour;
+      const row = rowsByDateHour[`${cellDate}-${hour}`];
+      const weekVal = row && row.ended_count_hour != null ? row.ended_count_hour : null;
+      const avg = historicalAvgFor(wd, hour);
+      const avgText = avg != null ? `média histórica: ${avg.toFixed(1)}` : "sem histórico suficiente ainda";
 
       if (isInProgress) {
-        // Hora em andamento: valor vivo (atualiza a cada 5 min), com o
-        // mesmo tooltip de média histórica pra comparação.
-        const liveRow = all.find((r) => r.metric_date === today && r.hour === hour);
-        const liveVal = liveRow?.ended_count_hour;
-        const liveLabel = liveVal != null ? liveVal : "–";
-        html += `<div class="heatmap-cell heatmap-inprogress" style="background:${liveVal != null ? colorForIntensity(liveVal, maxThisWeek) : "transparent"}" title="${WEEKDAY_LABELS[wd]} ${hour}h — em andamento: ${liveVal != null ? `${liveVal} até agora` : "sem leitura ainda"}. ${histLabel} (atualiza a cada 5 min)">${liveLabel}</div>`;
-      } else if (isFuture) {
-        html += `<div class="heatmap-cell heatmap-empty ${isTodayCol}" title="${WEEKDAY_LABELS[wd]} ${hour}h — ainda não chegou nesta semana. ${histLabel}">–</div>`;
+        const label = weekVal != null ? Math.round(weekVal) : "…";
+        html += `<div class="heatmap-cell heatmap-inprogress" title="${WEEKDAY_LABELS[wd]} ${hour}h — em andamento (parcial) · ${avgText}">${label}</div>`;
+      } else if (isFuture || weekVal == null) {
+        html += `<div class="heatmap-cell heatmap-empty ${isTodayCol}" title="${WEEKDAY_LABELS[wd]} ${hour}h — ${isFuture ? "ainda não chegou" : "sem dado nesta semana"} · ${avgText}">–</div>`;
       } else {
-        const val = thisWeekMap[`${wd}-${hour}`];
-        if (val == null) {
-          html += `<div class="heatmap-cell heatmap-empty ${isTodayCol}" title="${WEEKDAY_LABELS[wd]} ${hour}h — sem coleta nesta semana. ${histLabel}">–</div>`;
-        } else {
-          html += `<div class="heatmap-cell ${isTodayCol}" style="background:${colorForIntensity(val, maxThisWeek)}" title="${WEEKDAY_LABELS[wd]} ${hour}h — esta semana: ${val}. ${histLabel}">${Math.round(val)}</div>`;
-        }
+        html += `<div class="heatmap-cell ${isTodayCol}" style="background:${colorForIntensity(weekVal, maxAvg)}" title="${WEEKDAY_LABELS[wd]} ${hour}h — nesta semana: ${Math.round(weekVal)} · ${avgText}">${Math.round(weekVal)}</div>`;
       }
     }
   }
@@ -1723,6 +1628,7 @@ function renderHistoryRange(all) {
 }
 
 let reportsLoaded = false;
+let lastReportsAll = []; // cache do último dataset completo carregado, pra reaproveitar no refresh leve
 async function loadReports() {
   const grid = document.getElementById("comparisonsGrid");
   const heatmapWrap = document.getElementById("heatmapWrap");
@@ -1736,6 +1642,7 @@ async function loadReports() {
     renderHeatmap(all);
     renderForecast(all);
     renderHistoryRange(all);
+    lastReportsAll = all;
     reportsLoaded = true;
   } catch (err) {
     console.error("[Polaris] Falha ao carregar Inteligência & Relatórios:", err);
@@ -1745,6 +1652,30 @@ async function loadReports() {
     forecastBody.innerHTML = `<tr><td colspan="4" class="reports-empty">${msg}</td></tr>`;
   }
 }
+
+// Atualização leve da hora em andamento: busca só a data de hoje (consulta
+// barata, sem os ~120 dias de histórico) e mescla no dataset já em cache,
+// pra fazer a célula do mapa de calor, o "Realizado" da previsão e os cards
+// de comparação refletirem a hora corrente sem esperar ela fechar — e sem
+// custar uma consulta pesada no banco a cada rodada.
+async function refreshReportsToday() {
+  if (panelToggleBtn.dataset.current !== "reports" || !reportsLoaded) return;
+  try {
+    const today = todayLocalISODate();
+    const todayRows = await fetchHourlyMetrics({ fromDate: today, toDate: today, selectedQueues: loadReportsSelectedQueues() });
+    const merged = lastReportsAll.filter((r) => r.metric_date !== today).concat(todayRows);
+    lastReportsAll = merged;
+    computeComparisons(merged);
+    renderHeatmap(merged);
+    renderForecast(merged);
+  } catch (err) {
+    console.error("[Polaris] Falha na atualização leve (hora atual):", err);
+  }
+}
+// Prioridade "tempo real" não é viável com consulta HTTP tradicional sem
+// custar chamadas demais; 60s é o melhor equilíbrio entre atualidade e
+// carga no banco — bem abaixo do teto de 5-10min combinado.
+setInterval(refreshReportsToday, 60 * 1000);
 
 document.getElementById("refreshReportsBtn").addEventListener("click", loadReports);
 
@@ -1832,6 +1763,31 @@ document.getElementById("reportsApplyQueues").addEventListener("click", () => {
 });
 
 updateReportsQueueSummary();
+
+// ===================== Header some ao rolar (só na aba de Inteligência) =====================
+// Aplicado já na carga da página (o listener fica pronto desde o início; só
+// passa a ter efeito quando a pessoa abre a aba de Relatórios e rola).
+(function setupReportsHeaderAutoHide() {
+  const header = document.querySelector(".header");
+  const scrollEl = document.getElementById("panel-reports");
+  if (!header || !scrollEl) return;
+  let lastTop = 0;
+  const MIN_DELTA = 8; // ignora tremulação de rolagem muito pequena
+  scrollEl.addEventListener(
+    "scroll",
+    () => {
+      const top = scrollEl.scrollTop;
+      if (Math.abs(top - lastTop) < MIN_DELTA) return;
+      if (top > lastTop && top > 40) {
+        header.classList.add("header--hidden");
+      } else {
+        header.classList.remove("header--hidden");
+      }
+      lastTop = top;
+    },
+    { passive: true }
+  );
+})();
 
 </script>
 </body>
