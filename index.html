@@ -78,6 +78,14 @@
     background: linear-gradient(90deg, var(--cyan-500) 0%, var(--teal-600) 30%, var(--navy-900) 62%, var(--navy-950) 100%);
     color: white; box-shadow: var(--shadow-lg);
     position: relative; overflow: hidden;
+    transition: max-height .28s ease, opacity .2s ease, padding-top .28s ease, padding-bottom .28s ease;
+  }
+  .header.is-hidden-scroll {
+    max-height: 0 !important;
+    opacity: 0;
+    padding-top: 0; padding-bottom: 0;
+    box-shadow: none;
+    pointer-events: none;
   }
   .header::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -344,6 +352,62 @@
   .forecast-table td.diff-up { color: var(--red-crit); font-weight: 700; }
   .forecast-table td.diff-down { color: var(--green-ok); font-weight: 700; }
   .forecast-table tr.is-current-hour td { background: var(--canvas-edge); font-weight: 700; }
+
+  /* ===================== Responsivo (celular/tablet) ===================== */
+  @media (max-width: 700px) {
+    html { -webkit-text-size-adjust: 100%; }
+
+    body { overflow: hidden; }
+    .page {
+      height: 100vh; height: 100dvh; /* dvh corrige a barra de endereço do navegador móvel */
+      padding: 10px 10px 12px;
+      gap: 8px;
+    }
+
+    /* Header: quebra em 2 linhas — marca+botões numa linha, chips na linha de baixo */
+    .header { flex-wrap: wrap; row-gap: 8px; padding: 10px 12px; border-radius: 14px; }
+    .header__brand { order: 1; flex: 1 1 auto; min-width: 0; }
+    .header__brand h1 { font-size: 18px; }
+    .header__subtitle { font-size: 11.5px; }
+    .header__mark { width: 32px; height: 32px; }
+    #reportsToggleBtn, #panelToggleBtn { order: 2; width: 36px; height: 36px; }
+    .header__right { order: 3; flex: 1 1 100%; width: 100%; align-items: flex-start; }
+    .header__chips { width: 100%; }
+    .chip, .status-pill { font-size: 12px; padding: 6px 10px; }
+    .header__updated { font-size: 10px; }
+
+    /* Tabs/config/relatórios: tudo em coluna única, sem colunas lado a lado */
+    .grid-top { grid-template-columns: 1fr !important; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+    .field-grid { grid-template-columns: 1fr !important; }
+    .comparisons-grid { grid-template-columns: 1fr 1fr !important; gap: 8px; }
+    .metric-row__fields { grid-template-columns: 1fr !important; padding-left: 0 !important; }
+
+    .card { padding: 14px 14px; border-radius: 12px; }
+    .config-head h2 { font-size: 15px; }
+
+    /* Tabelas com muita coluna (previsão, agentes): permite rolagem
+       horizontal em vez de espremer o conteúdo até ficar ilegível */
+    .table-wrap, .heatmap-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .forecast-table, .agent-table { font-size: 11.5px; }
+    .forecast-table th, .forecast-table td, .agent-table th, .agent-table td { padding: 6px 7px; }
+
+    .heatmap-grid { min-width: 620px; } /* mantém a legibilidade das 24 linhas x 7 colunas, rola de lado */
+
+    .waiting-card__value { font-size: clamp(34px, 11vw, 52px); }
+
+    /* Botões e áreas de toque com tamanho confortável no dedo */
+    .icon-btn, .link-btn, .btn { min-height: 34px; }
+    input[type="number"], input[type="text"], select { font-size: 15px; } /* evita zoom automático do iOS em inputs */
+
+    .queue-list { max-height: 220px; }
+  }
+
+  @media (max-width: 420px) {
+    .comparisons-grid { grid-template-columns: 1fr !important; }
+    .stat-grid { grid-template-columns: 1fr 1fr !important; }
+    .header__brand h1 { font-size: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -700,7 +764,7 @@
       <div id="heatmapWrap" class="heatmap-wrap">
         <p class="reports-loading">Carregando…</p>
       </div>
-      <p class="reports-footnote">Cor mais forte = mais atendimentos, na média histórica daquele horário/dia da semana.</p>
+      <p class="reports-footnote">Os números mostram o volume real <strong>desta semana</strong>. Passe o mouse sobre um quadradinho para ver a média histórica daquele mesmo dia/horário. Cor mais forte = mais atendimentos, comparado ao pico desta semana.</p>
     </div>
 
     <div class="card">
@@ -850,6 +914,10 @@ function setPanel(name) {
 
   panelToggleBtn.dataset.current = name;
 
+  // Ao sair da aba de Inteligência, garante que o header volte visível —
+  // o esconder-ao-rolar só faz sentido lá dentro.
+  if (name !== "reports") showHeaderOnScroll();
+
   if (name === "reports") loadReports();
 }
 panelToggleBtn.addEventListener("click", () => {
@@ -860,6 +928,44 @@ reportsToggleBtn.addEventListener("click", () => {
 });
 document.getElementById("backToPanelBtn").addEventListener("click", () => setPanel("painel"));
 setPanel("painel");
+
+// ---------- Header esconde ao rolar (só dentro da aba de Inteligência) ----------
+// A página não rola no nível do body (é um shell de altura fixa) — quem
+// rola é o próprio painel ativo. Por isso o listener vai no scroll do
+// #panel-reports, não em window/document.
+const headerEl = document.querySelector(".header");
+const reportsScrollEl = document.getElementById("panel-reports");
+
+function freezeHeaderNaturalHeight() {
+  // max-height precisa de um valor em px pra animar (não funciona com
+  // "none"). Mede a altura real e trava isso como o "estado visível".
+  headerEl.style.maxHeight = `${headerEl.scrollHeight}px`;
+}
+function hideHeaderOnScroll() { headerEl.classList.add("is-hidden-scroll"); }
+function showHeaderOnScroll() { headerEl.classList.remove("is-hidden-scroll"); }
+
+freezeHeaderNaturalHeight();
+window.addEventListener("resize", freezeHeaderNaturalHeight);
+
+let lastScrollTop = 0;
+const SCROLL_HIDE_THRESHOLD = 24; // px mínimos rolados antes de reagir, evita tremor com micro-scrolls
+
+reportsScrollEl.addEventListener("scroll", () => {
+  const current = reportsScrollEl.scrollTop;
+
+  if (current <= SCROLL_HIDE_THRESHOLD) {
+    // Bem no topo: header sempre visível, sem exceção.
+    showHeaderOnScroll();
+  } else if (current > lastScrollTop) {
+    // Rolando pra baixo: esconde.
+    hideHeaderOnScroll();
+  } else if (current < lastScrollTop) {
+    // Rolando pra cima: mostra de novo (padrão comum de app mobile).
+    showHeaderOnScroll();
+  }
+
+  lastScrollTop = current;
+}, { passive: true });
 
 // ===================== Config form =====================
 const form = document.getElementById("settingsForm");
@@ -1445,50 +1551,64 @@ function colorForIntensity(value, max) {
   return `rgba(15, 118, 144, ${alpha.toFixed(2)})`; // teal-700 aproximado em rgba
 }
 
+function isoMondayOf(dateISO) {
+  const d = new Date(`${dateISO}T00:00:00`);
+  const weekday = d.getDay() || 7; // 1=Seg..7=Dom
+  d.setDate(d.getDate() - (weekday - 1));
+  return d.toISOString().slice(0, 10);
+}
+
 function renderHeatmap(all) {
   const wrap = document.getElementById("heatmapWrap");
 
-  // Média de ended_count_hour por (weekday, hour). Inclui os dias anteriores
-  // por completo, e também o dia de hoje — mas só as horas que já fecharam
-  // (ex.: às 11h, a hora das 10h já entra na média; a das 11h só entra depois
-  // que virar meio-dia). Assim o mapa vai se preenchendo ao longo do próprio
-  // dia, e não só a partir da semana seguinte.
   const today = todayLocalISODate();
   const todayWeekday = new Date().getDay() || 7;
   const currentHour = new Date().getHours();
-  const historical = all.filter((r) => {
-    if (r.ended_count_hour == null) return false;
-    if (r.metric_date === today) return r.hour < currentHour;
-    return true;
+
+  // "Esta semana" = de segunda a domingo da semana corrente (ISO).
+  const mondayThisWeek = isoMondayOf(today);
+  const sundayThisWeek = addDaysISO(mondayThisWeek, 6);
+
+  // Mapa (weekday-hour) -> valor de ESTA semana, pra exibir dentro do
+  // quadradinho. Só uma data cai em cada combinação weekday dentro da
+  // semana corrente, então não precisa de média aqui — é o valor real
+  // daquele dia específico.
+  const thisWeekRows = all.filter((r) => r.metric_date >= mondayThisWeek && r.metric_date <= sundayThisWeek);
+  const thisWeekMap = {};
+  thisWeekRows.forEach((r) => {
+    if (r.ended_count_hour == null) return;
+    // Ignora a hora em andamento aqui — ela é tratada à parte, com o
+    // valor "vivo" (ver isInProgress abaixo), pra não ficar competindo
+    // com a atualização em tempo real.
+    if (r.metric_date === today && r.hour === currentHour) return;
+    thisWeekMap[`${r.weekday}-${r.hour}`] = r.ended_count_hour;
   });
 
-  if (historical.length === 0) {
+  // Média histórica (todas as semanas ANTERIORES a esta) por (weekday,
+  // hour) — usada só no tooltip, nunca no número visível do quadradinho.
+  const historical = all.filter((r) => r.ended_count_hour != null && r.metric_date < mondayThisWeek);
+
+  if (thisWeekRows.length === 0 && historical.length === 0) {
     wrap.innerHTML = '<p class="reports-empty">Ainda não há dados suficientes pra montar o mapa de calor — volte em algumas horas.</p>';
     return;
   }
 
-  const buckets = {}; // "weekday-hour" -> {sum, count}
+  const histBuckets = {}; // "weekday-hour" -> {sum, count}
   historical.forEach((r) => {
     const key = `${r.weekday}-${r.hour}`;
-    if (!buckets[key]) buckets[key] = { sum: 0, count: 0 };
-    buckets[key].sum += r.ended_count_hour;
-    buckets[key].count += 1;
+    if (!histBuckets[key]) histBuckets[key] = { sum: 0, count: 0 };
+    histBuckets[key].sum += r.ended_count_hour;
+    histBuckets[key].count += 1;
   });
-
-  let maxAvg = 0;
-  const avgFor = (weekday, hour) => {
-    const b = buckets[`${weekday}-${hour}`];
-    if (!b) return null;
-    const avg = b.sum / b.count;
-    if (avg > maxAvg) maxAvg = avg;
-    return avg;
+  const histAvgFor = (weekday, hour) => {
+    const b = histBuckets[`${weekday}-${hour}`];
+    return b ? b.sum / b.count : null;
   };
 
-  // Pré-computa antes de renderizar (pra ter maxAvg correto)
-  const grid = [];
-  for (const hour of REPORT_HOURS) {
-    for (let wd = 1; wd <= 7; wd++) grid.push([wd, hour, avgFor(wd, hour)]);
-  }
+  // Intensidade da cor: relativa ao maior valor DESTA semana (o objetivo é
+  // ver os horários de pico da semana atual, não comparar contra o
+  // histórico inteiro).
+  const maxThisWeek = Math.max(0, ...Object.values(thisWeekMap));
 
   let html = '<div class="heatmap-grid">';
   html += '<div class="heatmap-cell heatmap-head"></div>';
@@ -1500,22 +1620,28 @@ function renderHeatmap(all) {
   for (const hour of REPORT_HOURS) {
     html += `<div class="heatmap-cell heatmap-hour">${String(hour).padStart(2, "0")}h</div>`;
     for (let wd = 1; wd <= 7; wd++) {
-      const val = grid.find((g) => g[0] === wd && g[1] === hour)[2];
       const isTodayCol = wd === todayWeekday ? "heatmap-today" : "";
       const isInProgress = wd === todayWeekday && hour === currentHour;
+      const isFuture = wd > todayWeekday || (wd === todayWeekday && hour > currentHour);
+      const histAvg = histAvgFor(wd, hour);
+      const histLabel = histAvg != null ? `Média histórica: ${histAvg.toFixed(1)}` : "Média histórica: sem dados ainda";
+
       if (isInProgress) {
-        // Hora em andamento: mostra o valor já registrado até agora (a
-        // coleta grava a cada 5 min, então este número reflete a operação
-        // com no máximo 5 min de atraso — não precisa esperar a hora
-        // fechar). Continua com o mesmo destaque visual de "em andamento".
+        // Hora em andamento: valor vivo (atualiza a cada 5 min), com o
+        // mesmo tooltip de média histórica pra comparação.
         const liveRow = all.find((r) => r.metric_date === today && r.hour === hour);
         const liveVal = liveRow?.ended_count_hour;
         const liveLabel = liveVal != null ? liveVal : "–";
-        html += `<div class="heatmap-cell heatmap-inprogress" style="background:${liveVal != null ? colorForIntensity(liveVal, maxAvg) : "transparent"}" title="${WEEKDAY_LABELS[wd]} ${hour}h — em andamento, ${liveVal != null ? `${liveVal} até agora` : "sem leitura ainda"} (atualiza a cada 5 min)">${liveLabel}</div>`;
-      } else if (val == null) {
-        html += `<div class="heatmap-cell heatmap-empty ${isTodayCol}">–</div>`;
+        html += `<div class="heatmap-cell heatmap-inprogress" style="background:${liveVal != null ? colorForIntensity(liveVal, maxThisWeek) : "transparent"}" title="${WEEKDAY_LABELS[wd]} ${hour}h — em andamento: ${liveVal != null ? `${liveVal} até agora` : "sem leitura ainda"}. ${histLabel} (atualiza a cada 5 min)">${liveLabel}</div>`;
+      } else if (isFuture) {
+        html += `<div class="heatmap-cell heatmap-empty ${isTodayCol}" title="${WEEKDAY_LABELS[wd]} ${hour}h — ainda não chegou nesta semana. ${histLabel}">–</div>`;
       } else {
-        html += `<div class="heatmap-cell ${isTodayCol}" style="background:${colorForIntensity(val, maxAvg)}" title="${WEEKDAY_LABELS[wd]} ${hour}h — média ${val.toFixed(1)}">${Math.round(val)}</div>`;
+        const val = thisWeekMap[`${wd}-${hour}`];
+        if (val == null) {
+          html += `<div class="heatmap-cell heatmap-empty ${isTodayCol}" title="${WEEKDAY_LABELS[wd]} ${hour}h — sem coleta nesta semana. ${histLabel}">–</div>`;
+        } else {
+          html += `<div class="heatmap-cell ${isTodayCol}" style="background:${colorForIntensity(val, maxThisWeek)}" title="${WEEKDAY_LABELS[wd]} ${hour}h — esta semana: ${val}. ${histLabel}">${Math.round(val)}</div>`;
+        }
       }
     }
   }
