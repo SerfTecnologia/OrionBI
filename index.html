@@ -235,6 +235,12 @@
   .topic-pill__label { font-size: 13px; font-weight: 700; color: var(--ink); }
   .topic-pill--critical { background: var(--red-crit-soft); border-color: #f3cccc; }
   .topic-pill--critical .topic-pill__count { color: var(--red-crit); }
+  .topic-pill--more {
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    background: var(--canvas-edge); border: 1px dashed var(--line); color: var(--teal-700);
+    font-weight: 700; font-size: 13px;
+  }
+  .topic-pill--more:hover { background: var(--surface); }
   .topics-empty { font-size: 13px; color: var(--ink-faint); line-height: 1.5; padding: 6px 2px; }
 
   /* ===================== Agent panel ===================== */
@@ -1403,6 +1409,7 @@ const SUBJECT_CATEGORIES = [
     "falha na integração tef", "falha na integracao tef", "não imprime comprovante", "nao imprime comprovante",
     "venda não finaliza", "venda nao finaliza", "problema com pagamento na maquininha", "bandeira não aceita",
     "bandeira nao aceita", "maquininha não conecta", "maquininha nao conecta", "erro no pagamento",
+    "pix", "pagamento", "cartão", "cartao", "tef", "maquininha", "boleto", "fatura", "cobrança", "cobranca",
   ]},
   { key: "lentidao", label: "Lentidão / Travamento", keywords: [
     "sistema está lento", "sistema esta lento", "sistema lento", "travando muito", "demora pra carregar",
@@ -1419,7 +1426,7 @@ const SUBJECT_CATEGORIES = [
     "cupom esta em branco", "comando não imprime", "comando nao imprime", "impressores não aparecem",
     "impressores nao aparecem", "não imprime pedido", "nao imprime pedido", "impressora fiscal não funciona",
     "impressora fiscal nao funciona", "não imprime comandas", "nao imprime comandas", "não imprime", "nao imprime",
-    "impressora não funciona", "impressora nao funciona",
+    "impressora não funciona", "impressora nao funciona", "impressora",
   ]},
   { key: "nota_fiscal", label: "Nota fiscal (contingência / rejeitada / pendente)", keywords: [
     "nota foi pra contingência", "nota foi pra contingencia", "nota não autoriza", "nota nao autoriza",
@@ -1427,7 +1434,8 @@ const SUBJECT_CATEGORIES = [
     "não manda nota fiscal", "nao manda nota fiscal", "nota ficou pendente", "falha no envio de nota",
     "nota fiscal eletrônica não valida", "nota fiscal eletronica nao valida", "nota em processamento",
     "nota travou", "mensagem de rejeição nf-e", "mensagem de rejeicao nfe", "nota em contingência",
-    "nota em contingencia", "nota pendente",
+    "nota em contingencia", "nota pendente", "manifestação", "manifestacao", "manifestar a recusa",
+    "recusa de nota", "manifestação do destinatário", "manifestacao do destinatario", "nota fiscal",
   ]},
   { key: "mobile_pos", label: "Mobile / POS / Maquininha", keywords: [
     "mobile não abre", "mobile nao abre", "erro ws mobile", "degust mobile travado",
@@ -1435,6 +1443,7 @@ const SUBJECT_CATEGORIES = [
     "mobile não carrega", "mobile nao carrega", "pedido não aparece no mobile", "pedido nao aparece no mobile",
     "maquininha não recebe pedido", "maquininha nao recebe pedido", "não aparece pedidos no mobile",
     "nao aparece pedidos no mobile", "mobile parou", "erro ao conectar pos", "mobile travado",
+    "mobile", "totem", "totens", "tótem", "fechamento de conta", "não fazendo fechamento", "nao fazendo fechamento",
   ]},
   { key: "qrlinx", label: "QR Linx / QR Code", keywords: [
     "qr linx não funciona", "qr linx nao funciona", "qrlinx não funciona", "qrlinx nao funciona",
@@ -1465,6 +1474,8 @@ const SUBJECT_CATEGORIES = [
     "pedido não salva", "pedido nao salva", "pedido não sai para cozinha", "pedido nao sai para cozinha",
     "pedido não imprime", "pedido nao imprime", "comanda travada", "comando de pedido perdido",
     "pedido não processa", "pedido nao processa", "comanda não fecha", "comanda nao fecha", "pedido sumiu",
+    "comanda", "comandas", "baixar comanda", "não sai comanda", "nao sai comanda", "não está saindo comanda",
+    "nao esta saindo comanda",
   ]},
   { key: "mesa_caixa", label: "Mesa / Caixa", keywords: [
     "mesa travou", "mesa não aparece", "mesa nao aparece", "mesa não libera", "mesa nao libera",
@@ -1477,7 +1488,7 @@ const SUBJECT_CATEGORIES = [
     "acesso negado", "gerente não acessa pdv", "gerente nao acessa pdv", "não entra no sistema",
     "nao entra no sistema", "senha não reconhecida", "senha nao reconhecida", "falha autenticação",
     "falha autenticacao", "não libera usuário", "nao libera usuario", "senha não atualiza",
-    "senha nao atualiza", "bloqueou usuário", "bloqueou usuario", "esqueci a senha", "resetar senha",
+    "senha nao atualiza", "bloqueou usuário", "bloqueou usuario", "esqueci a senha", "resetar senha", "senha",
   ]},
   { key: "atualizacao", label: "Atualização / Versão / Instalação", keywords: [
     "sistema pediu pra atualizar e travou", "erro na atualização", "erro na atualizacao",
@@ -1511,7 +1522,8 @@ const SUBJECT_CATEGORIES = [
     "não salva configuração", "nao salva configuracao", "ajuste não fica gravado", "ajuste nao fica gravado",
     "configuração não muda", "configuracao nao muda", "parâmetro não salva", "parametro nao salva",
     "sistema desconfigurou", "problema ao configurar", "não carrega parâmetro", "nao carrega parametro",
-    "não altera configuração", "nao altera configuracao",
+    "não altera configuração", "nao altera configuracao", "ajuste de sistema", "ajuste no sistema",
+    "configuração", "configuracao", "parâmetro", "parametro", "configurar",
   ]},
   { key: "menu_cardapio", label: "Menu / Cardápio", keywords: [
     "alterei menu não atualiza", "alterei menu nao atualiza", "item sumiu do cardápio", "item sumiu do cardapio",
@@ -1524,6 +1536,7 @@ const SUBJECT_CATEGORIES = [
     "sistema está offline", "sistema esta offline", "perda de conexão", "perda de conexao",
     "falha comunicação", "falha comunicacao", "erro servidor linx", "rede local não conecta",
     "rede local nao conecta", "pdv não sincroniza", "pdv nao sincroniza", "sem conexão", "sem conexao",
+    "servidor", "conexão", "conexao", "internet", "rede",
   ]},
   { key: "fiscal_sat", label: "Fiscal / SAT / SEFAZ", keywords: [
     "sat parou", "sat deu erro", "sefaz rejeitou", "não comunica com sat", "nao comunica com sat",
@@ -1538,7 +1551,7 @@ const SUBJECT_CATEGORIES = [
     "nao reconhece certificado", "não consegue instalar certificado", "nao consegue instalar certificado",
     "falha renovação certificado", "falha renovacao certificado", "certificado não encontrado",
     "certificado nao encontrado", "problema com certificado", "instalar certificado", "vincular certificado",
-    "mensagem de erro certificado", "certificado expirado", "certificado a1", "certificado e-cnpj",
+    "mensagem de erro certificado", "certificado expirado", "certificado a1", "certificado e-cnpj", "certificado",
   ]},
   { key: "reinstalacao_fora_escopo", label: "Serviço fora de escopo / Reinstalação de sistema", keywords: [
     "preciso reinstalar sistema", "pedir reinstalação", "pedir reinstalacao",
@@ -1555,7 +1568,7 @@ const SUBJECT_CATEGORIES = [
     "xml não disponível para contabilidade", "xml nao disponivel para contabilidade", "erro ao exportar xml",
     "não baixa xml", "nao baixa xml", "xml não aparece para envio", "xml nao aparece para envio",
     "xml não é validado", "xml nao e validado", "xml inválido", "xml invalido", "xml fiscal não está correto",
-    "xml fiscal nao esta correto",
+    "xml fiscal nao esta correto", "xml", "quero o xml", "preciso do xml", "xml de uma nota", "baixar xml",
   ]},
 ];
 
@@ -1579,6 +1592,24 @@ function significantWords(normText) {
   return normText.split(" ").filter((w) => w.length > 2 && !SUBJECT_STOPWORDS.has(w));
 }
 
+// Compara duas palavras tolerando variações de conjugação/plural em
+// português (ex.: "configuração" ~ "configurar" ~ "configurado",
+// "saindo" ~ "sai", "imprimir" ~ "imprime" ~ "impressão"). Em vez de exigir
+// igualdade exata, compara os primeiros caracteres — cobre a imensa
+// maioria das variações de uma mesma raiz sem precisar de um stemmer
+// completo de português.
+function wordsMatch(a, b) {
+  if (a === b) return true;
+  const minLen = Math.min(a.length, b.length);
+  if (minLen < 4) return false; // palavras muito curtas: só igualdade exata conta
+  const prefixLen = Math.min(minLen, 5);
+  return a.slice(0, prefixLen) === b.slice(0, prefixLen);
+}
+
+function countWordOverlap(kwWords, textWordsArr) {
+  return kwWords.filter((kw) => textWordsArr.some((tw) => wordsMatch(kw, tw))).length;
+}
+
 function categorizeSubject(text) {
   const norm = normalizeSubjectText(text);
   if (!norm) return null;
@@ -1590,12 +1621,13 @@ function categorizeSubject(text) {
     }
   }
 
-  // 2) Sobreposição de palavras — cobre o cliente escrevendo diferente
-  // do que está na lista (ordem trocada, sinônimo próximo, etc.). Exige
-  // que a maior parte das palavras significativas da frase-chave apareça
-  // no texto do cliente.
-  const textWords = new Set(significantWords(norm));
-  if (textWords.size === 0) return "outros";
+  // 2) Sobreposição de palavras (com tolerância a conjugação) — cobre o
+  // cliente escrevendo diferente do que está na lista (ordem trocada,
+  // "saindo" em vez de "sai", "configuração" em vez de "configurar" etc.).
+  // Exige que a maior parte das palavras significativas da frase-chave
+  // apareça no texto do cliente.
+  const textWordsArr = significantWords(norm);
+  if (textWordsArr.length === 0) return "outros";
 
   let bestKey = null;
   let bestScore = 0;
@@ -1603,7 +1635,7 @@ function categorizeSubject(text) {
     for (const kw of cat.normKeywords) {
       const kwWords = significantWords(kw);
       if (kwWords.length === 0) continue;
-      const matched = kwWords.filter((w) => textWords.has(w)).length;
+      const matched = countWordOverlap(kwWords, textWordsArr);
       const score = matched / kwWords.length;
       const minMatched = kwWords.length > 1 ? 2 : 1;
       if (score >= 0.75 && matched >= minMatched && score > bestScore) {
@@ -1627,6 +1659,9 @@ function extractWaitingSubjects(filaRows) {
   return filaRows.map((r) => r.Assunto).filter(Boolean);
 }
 
+const TOPICS_VISIBLE_LIMIT = 6; // pills visíveis antes de precisar expandir — otimizado pra não quebrar o layout da TV
+let topicsExpanded = false;
+
 function renderTopicsCard(filaRows, settings) {
   const card = document.getElementById("topicsCard");
   const grid = document.getElementById("topicsGrid");
@@ -1636,17 +1671,20 @@ function renderTopicsCard(filaRows, settings) {
     card.style.display = "none";
     return;
   }
-  card.style.display = "block";
 
   const subjects = extractWaitingSubjects(filaRows);
 
   if (!subjects || subjects.length === 0) {
-    hint.textContent = "Nenhum cliente em fila com assunto registrado no momento.";
-    grid.innerHTML = '<div class="topics-empty">Assim que houver clientes aguardando com assunto preenchido no Painel RC, este card agrupa automaticamente por categoria (ex.: "4 de 7 clientes em fila relatam lentidão").</div>';
+    // Ninguém em fila com assunto agora: o card some por completo (não
+    // ocupa espaço no layout principal, importante pro uso na TV).
+    card.style.display = "none";
+    topicsExpanded = false;
     return;
   }
 
+  card.style.display = "block";
   hint.textContent = `Agrupamento automático de ${subjects.length} cliente(s) em fila por categoria do assunto.`;
+
   const counts = {};
   subjects.forEach((s) => {
     const key = categorizeSubject(s) || "outros";
@@ -1654,9 +1692,11 @@ function renderTopicsCard(filaRows, settings) {
   });
 
   const sortedKeys = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const visibleKeys = topicsExpanded ? sortedKeys : sortedKeys.slice(0, TOPICS_VISIBLE_LIMIT);
+  const hiddenCount = sortedKeys.length - visibleKeys.length;
 
   grid.innerHTML = "";
-  sortedKeys.forEach((key) => {
+  visibleKeys.forEach((key) => {
     const n = counts[key];
     if (n === 0) return;
     const label = SUBJECT_CATEGORY_LABEL[key] || key;
@@ -1665,6 +1705,22 @@ function renderTopicsCard(filaRows, settings) {
     pill.innerHTML = `<span class="topic-pill__count">${n}<small> / ${subjects.length}</small></span><span class="topic-pill__label">${label}</span>`;
     grid.appendChild(pill);
   });
+
+  if (hiddenCount > 0) {
+    const moreBtn = document.createElement("button");
+    moreBtn.type = "button";
+    moreBtn.className = "topic-pill topic-pill--more";
+    moreBtn.textContent = `+${hiddenCount} categoria${hiddenCount > 1 ? "s" : ""}`;
+    moreBtn.addEventListener("click", () => { topicsExpanded = true; renderTopicsCard(filaRows, settings); });
+    grid.appendChild(moreBtn);
+  } else if (topicsExpanded && sortedKeys.length > TOPICS_VISIBLE_LIMIT) {
+    const lessBtn = document.createElement("button");
+    lessBtn.type = "button";
+    lessBtn.className = "topic-pill topic-pill--more";
+    lessBtn.textContent = "Mostrar menos";
+    lessBtn.addEventListener("click", () => { topicsExpanded = false; renderTopicsCard(filaRows, settings); });
+    grid.appendChild(lessBtn);
+  }
 }
 
 function tempoCellClass(level) {
@@ -1988,16 +2044,20 @@ function weightedAvgBy(rows, valueKey, weightKey = "ended_count_hour") {
 // menor é melhor). A seta sempre reflete o sinal aritmético (▲ = subiu,
 // ▼ = desceu); a COR é que muda conforme esse sentido for favorável ou não.
 function renderComparisonCard(label, currentVal, previousVal, opts = {}) {
-  const { unit = "", isTimeSeconds = false, higherIsBetter = false, compareLabel = "vs. referência" } = opts;
+  const { unit = "", isTimeSeconds = false, higherIsBetter = false, compareLabel = "vs. referência", refLabel = "referência" } = opts;
   const hasBoth = currentVal != null && previousVal != null;
   const fmt = (v) => (isTimeSeconds ? formatSeconds(v) : `${Math.round(v)}${unit}`);
 
   let deltaHtml = '<p class="comparison-card__empty">Sem dados suficientes para comparar.</p>';
+  let refHtml = "";
   if (hasBoth && previousVal !== 0) {
     const diffPct = Math.round(((currentVal - previousVal) / previousVal) * 100);
     const arrow = diffPct > 0 ? "▲" : diffPct < 0 ? "▼" : "＝";
     const trend = diffPct === 0 ? "flat" : (diffPct > 0) === higherIsBetter ? "good" : "bad";
     deltaHtml = `<p class="comparison-card__delta" data-trend="${trend}">${arrow} ${Math.abs(diffPct)}% ${compareLabel}</p>`;
+    refHtml = `<p class="comparison-card__ref">${refLabel}: <strong>${fmt(previousVal)}</strong></p>`;
+  } else if (currentVal != null && previousVal == null) {
+    refHtml = `<p class="comparison-card__ref comparison-card__ref--empty">${refLabel}: sem dado ainda</p>`;
   }
 
   return `
@@ -2005,6 +2065,7 @@ function renderComparisonCard(label, currentVal, previousVal, opts = {}) {
       <p class="comparison-card__label">${label}</p>
       <p class="comparison-card__value">${currentVal != null ? fmt(currentVal) : "–"}</p>
       ${deltaHtml}
+      ${refHtml}
     </div>`;
 }
 
@@ -2034,12 +2095,12 @@ function computeComparisons(all, todayWeekdayHint) {
   grid.innerHTML = [
     // TME, TMA e Nível de Serviço à esquerda; os três comparativos de Volume
     // agrupados e ordenados à direita, lado a lado.
-    renderComparisonCard("TME — hoje x ontem", weightedAvgBy(rowsToday, "tme_seconds"), weightedAvgBy(rowsYesterday, "tme_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
-    renderComparisonCard("TMA — hoje x ontem", weightedAvgBy(rowsToday, "tma_seconds"), weightedAvgBy(rowsYesterday, "tma_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem" }),
-    renderComparisonCard("Nível de Serviço — hoje x ontem", weightedAvgBy(rowsToday, "service_level"), weightedAvgBy(rowsYesterday, "service_level"), { unit: "%", higherIsBetter: true, compareLabel: "em relação a ontem" }),
-    renderComparisonCard("Volume — hoje x ontem", totalToday, totalYesterday, { higherIsBetter: false, compareLabel: "em relação a ontem" }),
-    renderComparisonCard(`Volume — hoje x ${WEEKDAY_LABELS[todayWeekday]} passada`, totalToday, totalLastWeek, { higherIsBetter: false, compareLabel: "vs. semana passada" }),
-    renderComparisonCard("Volume — hoje x média histórica do dia", totalToday, historicalAvgTotal, { higherIsBetter: false, compareLabel: "vs. média histórica" }),
+    renderComparisonCard("TME — hoje x ontem", weightedAvgBy(rowsToday, "tme_seconds"), weightedAvgBy(rowsYesterday, "tme_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem", refLabel: "Ontem" }),
+    renderComparisonCard("TMA — hoje x ontem", weightedAvgBy(rowsToday, "tma_seconds"), weightedAvgBy(rowsYesterday, "tma_seconds"), { isTimeSeconds: true, higherIsBetter: false, compareLabel: "em relação a ontem", refLabel: "Ontem" }),
+    renderComparisonCard("Nível de Serviço — hoje x ontem", weightedAvgBy(rowsToday, "service_level"), weightedAvgBy(rowsYesterday, "service_level"), { unit: "%", higherIsBetter: true, compareLabel: "em relação a ontem", refLabel: "Ontem" }),
+    renderComparisonCard("Volume — hoje x ontem", totalToday, totalYesterday, { higherIsBetter: false, compareLabel: "em relação a ontem", refLabel: "Ontem" }),
+    renderComparisonCard(`Volume — hoje x ${WEEKDAY_LABELS[todayWeekday]} passada`, totalToday, totalLastWeek, { higherIsBetter: false, compareLabel: "vs. semana passada", refLabel: `${WEEKDAY_LABELS[todayWeekday]} passada` }),
+    renderComparisonCard("Volume — hoje x média histórica do dia", totalToday, historicalAvgTotal, { higherIsBetter: false, compareLabel: "vs. média histórica", refLabel: "Média histórica" }),
   ].join("");
 
   return { todayWeekday };
